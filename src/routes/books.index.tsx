@@ -20,7 +20,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { RequireAuth } from "@/components/RequireAuth";
 import { useAuth } from "@/lib/auth";
 
-export const Route = createFileRoute("/books")({
+export const Route = createFileRoute("/books/")({
   component: () => (
     <RequireAuth>
       <BooksPage />
