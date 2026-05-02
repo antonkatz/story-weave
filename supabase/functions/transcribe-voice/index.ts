@@ -14,8 +14,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (!apiKey) throw new Error("ELEVENLABS_API_KEY not configured");
+    const apiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
     const authHeader = req.headers.get("Authorization") ?? "";
     const supabase = createClient(
@@ -37,21 +37,20 @@ serve(async (req) => {
     if (!fileRes.ok) throw new Error("Could not download audio");
     const audioBlob = await fileRes.blob();
 
+    const ext = audioPath.split(".").pop()?.toLowerCase() || "webm";
     const form = new FormData();
-    form.append("file", audioBlob, "voice.webm");
-    form.append("model_id", "scribe_v2");
-    form.append("tag_audio_events", "false");
-    form.append("diarize", "false");
+    form.append("file", audioBlob, `voice.${ext}`);
+    form.append("model", "whisper-1");
 
-    const sttRes = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+    const sttRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
-      headers: { "xi-api-key": apiKey },
+      headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
     });
 
     if (!sttRes.ok) {
       const t = await sttRes.text();
-      console.error("ElevenLabs error:", sttRes.status, t);
+      console.error("OpenAI Whisper error:", sttRes.status, t);
       throw new Error(`Transcription failed: ${sttRes.status}`);
     }
 
