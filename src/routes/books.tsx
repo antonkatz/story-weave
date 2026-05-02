@@ -171,19 +171,27 @@ function NewBookDialog({ onCreated }: { onCreated: (book: Book) => void }) {
         })
         .select("id,title,description,updated_at")
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("Book insert error:", error);
+        throw new Error(`${error.message}${error.details ? ` — ${error.details}` : ""}${error.hint ? ` (${error.hint})` : ""}`);
+      }
+      if (!data) {
+        throw new Error("Book was created but could not be read back. Check RLS policies.");
+      }
 
       // Seed an opening chapter
-      await supabase.from("chapters").insert({
+      const { error: chapterError } = await supabase.from("chapters").insert({
         book_id: data.id,
         title: "Introduction",
         content: "",
         position: 0,
       });
+      if (chapterError) console.error("Chapter seed error:", chapterError);
 
       onCreated(data);
       navigate({ to: "/books/$bookId", params: { bookId: data.id } });
     } catch (err) {
+      console.error("Create book failed:", err);
       toast.error(err instanceof Error ? err.message : "Could not create book");
     } finally {
       setSubmitting(false);
