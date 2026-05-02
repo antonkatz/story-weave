@@ -13,6 +13,7 @@ import { Route as BooksRouteImport } from './routes/books'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as BooksBookIdRouteImport } from './routes/books.$bookId'
 
 const BooksRoute = BooksRouteImport.update({
   id: '/books',
@@ -34,38 +35,46 @@ const JoinTokenRoute = JoinTokenRouteImport.update({
   path: '/join/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BooksBookIdRoute = BooksBookIdRouteImport.update({
+  id: '/$bookId',
+  path: '/$bookId',
+  getParentRoute: () => BooksRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/books': typeof BooksRoute
+  '/books': typeof BooksRouteWithChildren
+  '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/books': typeof BooksRoute
+  '/books': typeof BooksRouteWithChildren
+  '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/books': typeof BooksRoute
+  '/books': typeof BooksRouteWithChildren
+  '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/books' | '/join/$token'
+  fullPaths: '/' | '/auth' | '/books' | '/books/$bookId' | '/join/$token'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/books' | '/join/$token'
-  id: '__root__' | '/' | '/auth' | '/books' | '/join/$token'
+  to: '/' | '/auth' | '/books' | '/books/$bookId' | '/join/$token'
+  id: '__root__' | '/' | '/auth' | '/books' | '/books/$bookId' | '/join/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
-  BooksRoute: typeof BooksRoute
+  BooksRoute: typeof BooksRouteWithChildren
   JoinTokenRoute: typeof JoinTokenRoute
 }
 
@@ -99,15 +108,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JoinTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/books/$bookId': {
+      id: '/books/$bookId'
+      path: '/$bookId'
+      fullPath: '/books/$bookId'
+      preLoaderRoute: typeof BooksBookIdRouteImport
+      parentRoute: typeof BooksRoute
+    }
   }
 }
+
+interface BooksRouteChildren {
+  BooksBookIdRoute: typeof BooksBookIdRoute
+}
+
+const BooksRouteChildren: BooksRouteChildren = {
+  BooksBookIdRoute: BooksBookIdRoute,
+}
+
+const BooksRouteWithChildren = BooksRoute._addFileChildren(BooksRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
-  BooksRoute: BooksRoute,
+  BooksRoute: BooksRouteWithChildren,
   JoinTokenRoute: JoinTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
