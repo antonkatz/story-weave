@@ -136,12 +136,12 @@ export function Conversation({ bookId }: { bookId: string }) {
     setRecording(false);
   };
 
-  const uploadVoice = async (blob: Blob) => {
+  const uploadVoice = async (blob: Blob, ext = "webm", contentType = "audio/webm") => {
     if (!user) return;
-    const path = `${bookId}/${user.id}-${Date.now()}.webm`;
+    const path = `${bookId}/${user.id}-${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("voice-messages")
-      .upload(path, blob, { contentType: "audio/webm" });
+      .upload(path, blob, { contentType });
     if (upErr) {
       toast.error("Could not upload voice message");
       return;
@@ -165,6 +165,28 @@ export function Conversation({ bookId }: { bookId: string }) {
     supabase.functions
       .invoke("transcribe-voice", { body: { messageId: msg.id, audioPath: path } })
       .catch((e) => console.error("transcription error", e));
+  };
+
+  const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      toast.error("Please select an audio file");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("Audio file must be 25MB or smaller");
+      return;
+    }
+    const ext = file.name.split(".").pop()?.toLowerCase() || "mp3";
+    setUploading(true);
+    try {
+      await uploadVoice(file, ext, file.type);
+      toast.success("Audio uploaded");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
