@@ -44,6 +44,7 @@ export function Chapters({
   selectedChapterId,
   onSelectChapter,
   onJumpToMessage,
+  selectedSectionId,
 }: {
   bookId: string;
   chapters: Chapter[];
@@ -51,6 +52,7 @@ export function Chapters({
   selectedChapterId?: string | null;
   onSelectChapter?: (id: string | null) => void;
   onJumpToMessage?: (messageId: string) => void;
+  selectedSectionId?: string | null;
 }) {
   const [internalId, setInternalId] = useState<string | null>(chapters[0]?.id ?? null);
   const activeId = selectedChapterId ?? internalId;
