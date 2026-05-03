@@ -48,6 +48,8 @@ function BookPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+  const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
 
   const reloadChapters = useCallback(async () => {
     const { data } = await supabase
