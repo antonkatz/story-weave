@@ -202,7 +202,7 @@ function ChapterEditor({
     setSaving(true);
     const { error } = await supabase
       .from("chapters")
-      .update({ title: title.trim() || "Untitled", content, synopsis, theme })
+      .update({ title: title.trim() || "Untitled", synopsis, theme })
       .eq("id", chapter.id);
     setSaving(false);
     if (error) {
