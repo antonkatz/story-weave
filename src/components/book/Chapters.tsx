@@ -442,7 +442,17 @@ function ChapterEditor({
   );
 }
 
-function SectionEditor({ section, quotes }: { section: Section; quotes: Quote[] }) {
+function SectionEditor({
+  section,
+  quotes,
+  wrapperRef,
+  highlighted,
+}: {
+  section: Section;
+  quotes: Quote[];
+  wrapperRef?: (el: HTMLDivElement | null) => void;
+  highlighted?: boolean;
+}) {
   const [title, setTitle] = useState(section.title);
   const [purpose, setPurpose] = useState(section.purpose);
   const [content, setContent] = useState(section.content);
