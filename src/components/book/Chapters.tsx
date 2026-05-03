@@ -138,16 +138,27 @@ export function Chapters({
   );
 }
 
+type ContextMessage = {
+  id: string;
+  message_id: string;
+  body: string;
+  transcript: string | null;
+  kind: "text" | "voice";
+  created_at: string;
+};
+
 function ChapterEditor({
   bookId,
   chapter,
   onSaved,
   onDelete,
+  onJumpToMessage,
 }: {
   bookId: string;
   chapter: Chapter;
   onSaved: () => void;
   onDelete: () => void;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const [title, setTitle] = useState(chapter.title);
   const [synopsis, setSynopsis] = useState(chapter.synopsis ?? "");
@@ -156,6 +167,8 @@ function ChapterEditor({
   const [sections, setSections] = useState<Section[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
+  const [context, setContext] = useState<ContextMessage[]>([]);
+  const [runningAgent, setRunningAgent] = useState(false);
 
   useEffect(() => {
     setTitle(chapter.title);
