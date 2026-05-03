@@ -163,6 +163,14 @@ function BookPage() {
                 )}
               </div>
             </div>
+            <AgentSettingsDialog
+              bookId={bookId}
+              trigger={
+                <Button size="sm" variant="outline">
+                  <Bot className="mr-1.5 h-4 w-4" /> Agents
+                </Button>
+              }
+            />
             <InviteDialog bookId={bookId} trigger={<Button size="sm">Invite</Button>} />
           </div>
         </div>
@@ -181,18 +189,7 @@ function BookPage() {
         </section>
 
         <aside className="flex flex-col overflow-hidden bg-paper">
-          <Tabs defaultValue="conversation" className="flex h-full flex-col">
-            <TabsList className="m-2 grid grid-cols-2">
-              <TabsTrigger value="conversation">Conversation</TabsTrigger>
-              <TabsTrigger value="edits">Suggested edits</TabsTrigger>
-            </TabsList>
-            <TabsContent value="conversation" className="flex-1 overflow-hidden">
-              <Conversation bookId={bookId} />
-            </TabsContent>
-            <TabsContent value="edits" className="flex-1 overflow-hidden">
-              <Edits bookId={bookId} chapters={chapters} />
-            </TabsContent>
-          </Tabs>
+          <Conversation bookId={bookId} />
         </aside>
       </main>
     </div>
