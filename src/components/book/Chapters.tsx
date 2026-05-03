@@ -285,7 +285,12 @@ function ChapterEditor({
       if (error) throw error;
       const inserted = (data as { inserted?: number })?.inserted ?? 0;
       const msg = (data as { message?: string })?.message;
+      const usedFallback = (data as { usedFallback?: boolean })?.usedFallback;
       if (msg) toast.info(msg);
+      else if (usedFallback)
+        toast.success(
+          `Proposed ${inserted} section change${inserted === 1 ? "" : "s"} (no context messages linked yet — used full conversation).`,
+        );
       else toast.success(`Proposed ${inserted} section change${inserted === 1 ? "" : "s"} for this chapter.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not run agent");
