@@ -484,7 +484,10 @@ function SectionEditor({
   };
 
   return (
-    <div className="rounded-lg border border-border bg-paper p-3">
+    <div
+      ref={wrapperRef}
+      className={`rounded-lg border bg-paper p-3 transition ${highlighted ? "border-primary ring-2 ring-primary" : "border-border"}`}
+    >
       <div className="flex items-center gap-2">
         <GripVertical className="h-4 w-4 text-muted-foreground" />
         <Input
