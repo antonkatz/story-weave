@@ -369,7 +369,7 @@ serve(async (req) => {
     if (err instanceof Response) return err;
     console.error("run-agents error:", err);
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+      JSON.stringify({ error: err instanceof Error ? err.message : (err && typeof err === "object" ? (err as any).message ?? JSON.stringify(err) : String(err)) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
