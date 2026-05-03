@@ -298,6 +298,7 @@ export function Conversation({ bookId, jumpToMessageId }: { bookId: string; jump
               message={m}
               isMine={m.author_id === user?.id}
               authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
+              highlighted={m.id === highlightId}
             />
           ))
         )}
