@@ -138,7 +138,6 @@ function ChapterEditor({
   const [title, setTitle] = useState(chapter.title);
   const [synopsis, setSynopsis] = useState(chapter.synopsis ?? "");
   const [theme, setTheme] = useState(chapter.theme ?? "");
-  const [content, setContent] = useState(chapter.content);
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -148,8 +147,7 @@ function ChapterEditor({
     setTitle(chapter.title);
     setSynopsis(chapter.synopsis ?? "");
     setTheme(chapter.theme ?? "");
-    setContent(chapter.content);
-  }, [chapter.id, chapter.title, chapter.content, chapter.synopsis, chapter.theme]);
+  }, [chapter.id, chapter.title, chapter.synopsis, chapter.theme]);
 
   const reloadSections = async () => {
     const { data } = await supabase
