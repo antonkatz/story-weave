@@ -20,6 +20,8 @@ type Message = {
   analyzed_at: string | null;
 };
 
+type AgentKind = "structure" | "quotation" | "writing";
+
 export function Conversation({ bookId }: { bookId: string }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,7 +32,12 @@ export function Conversation({ bookId }: { bookId: string }) {
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [running, setRunning] = useState<AgentKind | null>(null);
+  const [analyzed, setAnalyzed] = useState<Record<AgentKind, Set<string>>>({
+    structure: new Set(),
+    quotation: new Set(),
+    writing: new Set(),
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
