@@ -199,53 +199,71 @@ export function Conversation({ bookId }: { bookId: string }) {
     }
   };
 
-  const runAgents = async () => {
-    setRunning(true);
+  // Load per-agent analyzed message ids
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from("message_agent_analysis")
+        .select("message_id,agent")
+        .eq("book_id", bookId);
+      if (!active || !data) return;
+      const next: Record<AgentKind, Set<string>> = {
+        structure: new Set(),
+        quotation: new Set(),
+        writing: new Set(),
+      };
+      for (const r of data as { message_id: string; agent: AgentKind }[]) {
+        next[r.agent]?.add(r.message_id);
+      }
+      setAnalyzed(next);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [bookId]);
+
+  // Realtime: track new analysis rows
+  useEffect(() => {
+    const ch = supabase
+      .channel(`analysis:${bookId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
+        (payload) => {
+          const row = payload.new as { message_id: string; agent: AgentKind };
+          setAnalyzed((prev) => {
+            const next = { ...prev, [row.agent]: new Set(prev[row.agent]) };
+            next[row.agent].add(row.message_id);
+            return next;
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [bookId]);
+
+  const runAgent = async (agent: AgentKind) => {
+    setRunning(agent);
     try {
-      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId } });
+      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId, agent } });
       if (error) throw error;
       const inserted = (data as { inserted?: number })?.inserted ?? 0;
-      const analyzed = (data as { analyzed?: number })?.analyzed ?? 0;
-      if (inserted === 0 && analyzed === 0) toast.info("No new messages to analyze.");
-      else toast.success(`Agents proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${analyzed} message${analyzed === 1 ? "" : "s"}.`);
+      const an = (data as { analyzed?: number })?.analyzed ?? 0;
+      const msg = (data as { message?: string })?.message;
+      if (msg) toast.info(msg);
+      else toast.success(`${capitalize(agent)} agent proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${an} message${an === 1 ? "" : "s"}.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not run agents");
+      toast.error(e instanceof Error ? e.message : "Could not run agent");
     } finally {
-      setRunning(false);
+      setRunning(null);
     }
   };
 
-  const unanalyzedCount = messages.filter((m) => !m.analyzed_at).length;
-
-  return (
-    <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
-        {messages.length === 0 ? (
-          <p className="mt-12 text-center text-sm italic text-muted-foreground">
-            No messages yet — say hello or send a voice note.
-          </p>
-        ) : (
-          messages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              isMine={m.author_id === user?.id}
-              authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
-            />
-          ))
-        )}
-      </div>
-      {unanalyzedCount > 0 && (
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-plum/5 px-3 py-2">
-          <span className="text-xs text-muted-foreground">
-            {unanalyzedCount} new message{unanalyzedCount === 1 ? "" : "s"} not analyzed
-          </span>
-          <Button size="sm" onClick={runAgents} disabled={running} variant="secondary">
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            {running ? "Running agents…" : "Run agents"}
-          </Button>
-        </div>
-      )}
+  const unanalyzedFor = (agent: AgentKind) =>
+    messages.filter((m) => !analyzed[agent].has(m.id)).length;
       <div className="border-t border-border bg-paper/60 p-3">
         <div className="flex items-center gap-2">
           <Input
