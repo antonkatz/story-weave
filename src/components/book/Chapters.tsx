@@ -307,19 +307,6 @@ function ChapterEditor({
         )}
       </div>
 
-      <details className="rounded-md border border-border bg-paper/40 p-3">
-        <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground">
-          Free-form chapter content (legacy)
-        </summary>
-        <Textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={10}
-          placeholder="Free-form prose for this chapter…"
-          className="mt-2 resize-none bg-paper font-serif text-base leading-relaxed"
-        />
-      </details>
-
       <div className="flex justify-end">
         <Button onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save chapter"}
