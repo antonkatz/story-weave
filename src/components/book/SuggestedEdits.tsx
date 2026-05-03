@@ -236,14 +236,25 @@ async function applyAgentAction(edit: Edit, bookId: string) {
         .order("position", { ascending: false })
         .limit(1);
       const nextPos = (existing?.[0]?.position ?? -1) + 1;
-      const { error } = await supabase.from("chapters").insert({
-        book_id: bookId,
-        title: p.title || "New chapter",
-        position: nextPos,
-        synopsis: p.synopsis || "",
-        theme: p.theme || "",
-      });
+      const { data: created, error } = await supabase
+        .from("chapters")
+        .insert({
+          book_id: bookId,
+          title: p.title || "New chapter",
+          position: nextPos,
+          synopsis: p.synopsis || "",
+          theme: p.theme || "",
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+      // Link source messages as chapter context
+      const srcIds: string[] = Array.isArray(p.source_message_ids) ? p.source_message_ids : [];
+      if (created && srcIds.length > 0) {
+        await supabase.from("chapter_message_context").insert(
+          srcIds.map((mid) => ({ book_id: bookId, chapter_id: created.id, message_id: mid })),
+        );
+      }
       return;
     }
     case "rename_chapter": {
