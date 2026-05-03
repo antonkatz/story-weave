@@ -176,6 +176,11 @@ function BookPage() {
                 )}
               </div>
             </div>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/books/$bookId/read" params={{ bookId }}>
+                <BookOpen className="mr-1.5 h-4 w-4" /> Read / Export
+              </Link>
+            </Button>
             <AgentSettingsDialog
               bookId={bookId}
               trigger={
@@ -192,7 +197,7 @@ function BookPage() {
       {/* Workspace */}
       <main className="grid flex-1 overflow-hidden lg:grid-cols-[1fr_420px]">
         <section className="overflow-hidden border-r border-border paper-texture">
-          <Tabs defaultValue="chapters" className="flex h-full flex-col">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b border-border bg-paper/70 px-4 py-2">
               <TabsList>
                 <TabsTrigger value="chapters">Chapters ({chapters.length})</TabsTrigger>
@@ -207,13 +212,17 @@ function BookPage() {
                 selectedChapterId={selectedChapterId}
                 onSelectChapter={setSelectedChapterId}
                 onJumpToMessage={(id) => setJumpToMessageId(`${id}#${Date.now()}`)}
+                selectedSectionId={selectedSectionId ? selectedSectionId.split("#")[0] : null}
               />
             </TabsContent>
             <TabsContent value="quotes" className="m-0 flex-1 overflow-hidden">
               <QuotesBrowser
                 bookId={bookId}
                 chapters={chapters}
-                onJumpToChapter={(chapterId) => setSelectedChapterId(chapterId)}
+                onJumpToChapter={(chapterId) => {
+                  setActiveTab("chapters");
+                  setSelectedChapterId(chapterId);
+                }}
               />
             </TabsContent>
           </Tabs>
@@ -223,6 +232,7 @@ function BookPage() {
           <Conversation
             bookId={bookId}
             jumpToMessageId={jumpToMessageId ? jumpToMessageId.split("#")[0] : null}
+            onApplied={handleApplied}
           />
         </aside>
       </main>
