@@ -379,10 +379,12 @@ function MessageBubble({
   message,
   isMine,
   authorName,
+  highlighted,
 }: {
   message: Message;
   isMine: boolean;
   authorName: string;
+  highlighted?: boolean;
 }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -401,13 +403,13 @@ function MessageBubble({
   }, [message]);
 
   return (
-    <div className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+    <div id={`msg-${message.id}`} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm ${
+        className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm transition-all ${
           isMine
             ? "bg-primary text-primary-foreground"
             : "bg-secondary text-secondary-foreground"
-        }`}
+        } ${highlighted ? "ring-2 ring-plum ring-offset-2 ring-offset-paper" : ""}`}
       >
         <p className={`mb-1 text-xs font-medium ${isMine ? "opacity-80" : "text-muted-foreground"}`}>
           {isMine ? "You" : authorName}
