@@ -174,6 +174,18 @@ function ChapterEditor({
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [context, setContext] = useState<ContextMessage[]>([]);
   const [runningAgent, setRunningAgent] = useState(false);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [highlightedSectionId, setHighlightedSectionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedSectionId) return;
+    const el = sectionRefs.current[selectedSectionId];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedSectionId(selectedSectionId);
+    const t = setTimeout(() => setHighlightedSectionId(null), 2000);
+    return () => clearTimeout(t);
+  }, [selectedSectionId, sections]);
 
   useEffect(() => {
     setTitle(chapter.title);
