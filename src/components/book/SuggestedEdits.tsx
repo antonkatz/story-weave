@@ -370,29 +370,8 @@ async function applyAgentAction(edit: Edit, bookId: string) {
   }
 }
 
-async function applyLegacyEdit(edit: Edit, bookId: string) {
-  if (edit.kind === "new_chapter") {
-    const { data: existing } = await supabase
-      .from("chapters")
-      .select("position")
-      .eq("book_id", bookId)
-      .order("position", { ascending: false })
-      .limit(1);
-    const nextPos = (existing?.[0]?.position ?? -1) + 1;
-    const { error } = await supabase.from("chapters").insert({
-      book_id: bookId,
-      title: edit.proposed_title ?? "New chapter",
-      content: edit.proposed_content ?? "",
-      position: nextPos,
-    });
-    if (error) throw error;
-  } else if (edit.chapter_id) {
-    const { data: chap } = await supabase.from("chapters").select("content").eq("id", edit.chapter_id).single();
-    const newContent =
-      edit.kind === "append"
-        ? [chap?.content ?? "", edit.proposed_content ?? ""].filter(Boolean).join("\n\n")
-        : edit.proposed_content ?? "";
-    const { error } = await supabase.from("chapters").update({ content: newContent }).eq("id", edit.chapter_id);
-    if (error) throw error;
-  }
+async function applyLegacyEdit(_edit: Edit, _bookId: string) {
+  throw new Error(
+    "This is a legacy chapter-content edit. Free-form chapter prose has been removed — please reject and re-run the agents.",
+  );
 }
