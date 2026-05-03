@@ -183,7 +183,6 @@ function NewBookDialog({ onCreated }: { onCreated: (book: Book) => void }) {
       const { error: chapterError } = await supabase.from("chapters").insert({
         book_id: data.id,
         title: "Introduction",
-        content: "",
         position: 0,
       });
       if (chapterError) console.error("Chapter seed error:", chapterError);
