@@ -360,54 +360,6 @@ export function Conversation({ bookId }: { bookId: string }) {
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
-        <div className="flex items-center gap-2">
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                sendText();
-              }
-            }}
-            placeholder={recording ? "Recording…" : "Write a message"}
-            disabled={recording}
-          />
-          <Button size="icon" onClick={sendText} disabled={recording || !text.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            onChange={handleFilePick}
-          />
-          <Button
-            size="icon"
-            variant="secondary"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={recording || uploading}
-            aria-label="Upload audio file"
-            title="Upload audio file"
-          >
-            <Paperclip className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant={recording ? "destructive" : "secondary"}
-            onClick={recording ? stopRecording : startRecording}
-            aria-label={recording ? "Stop recording" : "Record voice"}
-            disabled={uploading}
-          >
-            {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
-      <SuggestedEdits bookId={bookId} />
-    </div>
-  );
-}
 
 function MessageBubble({
   message,
