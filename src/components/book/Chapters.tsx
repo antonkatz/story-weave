@@ -203,9 +203,38 @@ function ChapterEditor({
     setQuotes((qs ?? []) as Quote[]);
   };
 
+  const reloadContext = async () => {
+    const { data: links } = await supabase
+      .from("chapter_message_context")
+      .select("id,message_id")
+      .eq("chapter_id", chapter.id);
+    const msgIds = (links ?? []).map((l) => l.message_id);
+    if (msgIds.length === 0) {
+      setContext([]);
+      return;
+    }
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("id,body,transcript,kind,created_at")
+      .in("id", msgIds)
+      .order("created_at");
+    const linkMap = new Map((links ?? []).map((l) => [l.message_id, l.id]));
+    setContext(
+      (msgs ?? []).map((m) => ({
+        id: linkMap.get(m.id)!,
+        message_id: m.id,
+        body: m.body,
+        transcript: m.transcript,
+        kind: m.kind as "text" | "voice",
+        created_at: m.created_at,
+      })),
+    );
+  };
+
   useEffect(() => {
     reloadSections();
     reloadQuotes();
+    reloadContext();
     const ch = supabase
       .channel(`chapter-detail:${chapter.id}`)
       .on(
@@ -218,12 +247,35 @@ function ChapterEditor({
         { event: "*", schema: "public", table: "quote_placements", filter: `chapter_id=eq.${chapter.id}` },
         () => reloadQuotes(),
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "chapter_message_context", filter: `chapter_id=eq.${chapter.id}` },
+        () => reloadContext(),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter.id]);
+
+  const runChapterStructureAgent = async () => {
+    setRunningAgent(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-agents", {
+        body: { bookId, agent: "structure", chapterId: chapter.id },
+      });
+      if (error) throw error;
+      const inserted = (data as { inserted?: number })?.inserted ?? 0;
+      const msg = (data as { message?: string })?.message;
+      if (msg) toast.info(msg);
+      else toast.success(`Proposed ${inserted} section change${inserted === 1 ? "" : "s"} for this chapter.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not run agent");
+    } finally {
+      setRunningAgent(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
