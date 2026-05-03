@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Paperclip, Send, Square } from "lucide-react";
+import { Mic, Paperclip, Send, Square, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
+import { SuggestedEdits } from "@/components/book/SuggestedEdits";
 
 type ProfileMap = Record<string, { display_name: string; avatar_url: string | null }>;
 
@@ -16,6 +17,7 @@ type Message = {
   audio_path: string | null;
   transcript: string | null;
   created_at: string;
+  analyzed_at: string | null;
 };
 
 export function Conversation({ bookId }: { bookId: string }) {
@@ -28,6 +30,7 @@ export function Conversation({ bookId }: { bookId: string }) {
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [running, setRunning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
@@ -36,7 +39,7 @@ export function Conversation({ bookId }: { bookId: string }) {
     (async () => {
       const { data } = await supabase
         .from("messages")
-        .select("id,author_id,kind,body,audio_path,transcript,created_at")
+        .select("id,author_id,kind,body,audio_path,transcript,created_at,analyzed_at")
         .eq("book_id", bookId)
         .order("created_at", { ascending: true });
       if (active) setMessages((data ?? []) as Message[]);
@@ -189,6 +192,24 @@ export function Conversation({ bookId }: { bookId: string }) {
     }
   };
 
+  const runAgents = async () => {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId } });
+      if (error) throw error;
+      const inserted = (data as { inserted?: number })?.inserted ?? 0;
+      const analyzed = (data as { analyzed?: number })?.analyzed ?? 0;
+      if (inserted === 0 && analyzed === 0) toast.info("No new messages to analyze.");
+      else toast.success(`Agents proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${analyzed} message${analyzed === 1 ? "" : "s"}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not run agents");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const unanalyzedCount = messages.filter((m) => !m.analyzed_at).length;
+
   return (
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -207,6 +228,17 @@ export function Conversation({ bookId }: { bookId: string }) {
           ))
         )}
       </div>
+      {unanalyzedCount > 0 && (
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-plum/5 px-3 py-2">
+          <span className="text-xs text-muted-foreground">
+            {unanalyzedCount} new message{unanalyzedCount === 1 ? "" : "s"} not analyzed
+          </span>
+          <Button size="sm" onClick={runAgents} disabled={running} variant="secondary">
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            {running ? "Running agents…" : "Run agents"}
+          </Button>
+        </div>
+      )}
       <div className="border-t border-border bg-paper/60 p-3">
         <div className="flex items-center gap-2">
           <Input
@@ -252,6 +284,7 @@ export function Conversation({ bookId }: { bookId: string }) {
           </Button>
         </div>
       </div>
+      <SuggestedEdits bookId={bookId} />
     </div>
   );
 }

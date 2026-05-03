@@ -1,15 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Users } from "lucide-react";
+import { ArrowLeft, Users, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Conversation } from "@/components/book/Conversation";
-import { Edits } from "@/components/book/Edits";
 import { Chapters } from "@/components/book/Chapters";
 import { InviteDialog } from "@/components/book/InviteDialog";
+import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
 
 export const Route = createFileRoute("/books/$bookId")({
   component: () => (
@@ -164,6 +163,14 @@ function BookPage() {
                 )}
               </div>
             </div>
+            <AgentSettingsDialog
+              bookId={bookId}
+              trigger={
+                <Button size="sm" variant="outline">
+                  <Bot className="mr-1.5 h-4 w-4" /> Agents
+                </Button>
+              }
+            />
             <InviteDialog bookId={bookId} trigger={<Button size="sm">Invite</Button>} />
           </div>
         </div>
@@ -182,18 +189,7 @@ function BookPage() {
         </section>
 
         <aside className="flex flex-col overflow-hidden bg-paper">
-          <Tabs defaultValue="conversation" className="flex h-full flex-col">
-            <TabsList className="m-2 grid grid-cols-2">
-              <TabsTrigger value="conversation">Conversation</TabsTrigger>
-              <TabsTrigger value="edits">Suggested edits</TabsTrigger>
-            </TabsList>
-            <TabsContent value="conversation" className="flex-1 overflow-hidden">
-              <Conversation bookId={bookId} />
-            </TabsContent>
-            <TabsContent value="edits" className="flex-1 overflow-hidden">
-              <Edits bookId={bookId} chapters={chapters} />
-            </TabsContent>
-          </Tabs>
+          <Conversation bookId={bookId} />
         </aside>
       </main>
     </div>
