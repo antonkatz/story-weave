@@ -284,6 +284,7 @@ export function Conversation({ bookId }: { bookId: string }) {
           </Button>
         </div>
       </div>
+      <SuggestedEdits bookId={bookId} />
     </div>
   );
 }
