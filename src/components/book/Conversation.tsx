@@ -264,7 +264,102 @@ export function Conversation({ bookId }: { bookId: string }) {
 
   const unanalyzedFor = (agent: AgentKind) =>
     messages.filter((m) => !analyzed[agent].has(m.id)).length;
+
+  const agentList: { id: AgentKind; label: string }[] = [
+    { id: "structure", label: "Structure" },
+    { id: "quotation", label: "Quotation" },
+    { id: "writing", label: "Writing" },
+  ];
+
+  return (
+    <div className="flex h-full flex-col">
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+        {messages.length === 0 ? (
+          <p className="mt-12 text-center text-sm italic text-muted-foreground">
+            No messages yet — say hello or send a voice note.
+          </p>
+        ) : (
+          messages.map((m) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              isMine={m.author_id === user?.id}
+              authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
+            />
+          ))
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border bg-plum/5 px-3 py-2">
+        <span className="text-xs text-muted-foreground">Run an agent:</span>
+        {agentList.map((a) => {
+          const count = unanalyzedFor(a.id);
+          return (
+            <Button
+              key={a.id}
+              size="sm"
+              variant="secondary"
+              disabled={running !== null || count === 0}
+              onClick={() => runAgent(a.id)}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              {running === a.id ? `Running ${a.label}…` : `${a.label}${count > 0 ? ` (${count})` : ""}`}
+            </Button>
+          );
+        })}
+      </div>
       <div className="border-t border-border bg-paper/60 p-3">
+        <div className="flex items-center gap-2">
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendText();
+              }
+            }}
+            placeholder={recording ? "Recording…" : "Write a message"}
+            disabled={recording}
+          />
+          <Button size="icon" onClick={sendText} disabled={recording || !text.trim()}>
+            <Send className="h-4 w-4" />
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={handleFilePick}
+          />
+          <Button
+            size="icon"
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={recording || uploading}
+            aria-label="Upload audio file"
+            title="Upload audio file"
+          >
+            <Paperclip className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant={recording ? "destructive" : "secondary"}
+            onClick={recording ? stopRecording : startRecording}
+            aria-label={recording ? "Stop recording" : "Record voice"}
+            disabled={uploading}
+          >
+            {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
+      <SuggestedEdits bookId={bookId} />
+    </div>
+  );
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
         <div className="flex items-center gap-2">
           <Input
             value={text}
