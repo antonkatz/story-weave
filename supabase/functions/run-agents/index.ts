@@ -393,16 +393,18 @@ serve(async (req) => {
       if (insErr) throw insErr;
     }
 
-    // Mark messages analyzed for this agent
-    const analysisRows = newMessages.map((m: any) => ({
-      message_id: m.id,
-      agent,
-      book_id: bookId,
-    }));
-    if (analysisRows.length > 0) {
-      await supabase.from("message_agent_analysis").upsert(analysisRows, {
-        onConflict: "message_id,agent",
-      });
+    // Mark messages analyzed for this agent (skip in focused chapter mode)
+    if (!focusedChapter) {
+      const analysisRows = newMessages.map((m: any) => ({
+        message_id: m.id,
+        agent,
+        book_id: bookId,
+      }));
+      if (analysisRows.length > 0) {
+        await supabase.from("message_agent_analysis").upsert(analysisRows, {
+          onConflict: "message_id,agent",
+        });
+      }
     }
 
     return new Response(
