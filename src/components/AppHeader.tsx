@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { BookOpen, LogOut } from "lucide-react";
+import { BookOpen, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
@@ -20,6 +20,11 @@ export function AppHeader() {
               <span className="hidden text-sm text-muted-foreground sm:inline">
                 {user.email}
               </span>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/settings/agents">
+                  <Settings className="mr-2 h-4 w-4" /> Agents
+                </Link>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
