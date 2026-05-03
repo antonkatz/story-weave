@@ -4,9 +4,11 @@ import { ArrowLeft, Users, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Conversation } from "@/components/book/Conversation";
 import { Chapters } from "@/components/book/Chapters";
+import { QuotesBrowser } from "@/components/book/QuotesBrowser";
 import { InviteDialog } from "@/components/book/InviteDialog";
 import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
 
@@ -46,6 +48,8 @@ function BookPage() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+  const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
 
   const reloadChapters = useCallback(async () => {
     const { data } = await supabase
@@ -180,17 +184,38 @@ function BookPage() {
       {/* Workspace */}
       <main className="grid flex-1 overflow-hidden lg:grid-cols-[1fr_420px]">
         <section className="overflow-hidden border-r border-border paper-texture">
-          <div className="flex items-center justify-between border-b border-border bg-paper/70 px-4 py-2">
-            <h2 className="font-serif text-lg font-semibold">Chapters</h2>
-            <p className="text-xs text-muted-foreground">{chapters.length} chapters</p>
-          </div>
-          <div className="h-[calc(100%-41px)]">
-            <Chapters bookId={bookId} chapters={chapters} onChange={reloadChapters} />
-          </div>
+          <Tabs defaultValue="chapters" className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b border-border bg-paper/70 px-4 py-2">
+              <TabsList>
+                <TabsTrigger value="chapters">Chapters ({chapters.length})</TabsTrigger>
+                <TabsTrigger value="quotes">Quotes</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="chapters" className="m-0 flex-1 overflow-hidden">
+              <Chapters
+                bookId={bookId}
+                chapters={chapters}
+                onChange={reloadChapters}
+                selectedChapterId={selectedChapterId}
+                onSelectChapter={setSelectedChapterId}
+                onJumpToMessage={(id) => setJumpToMessageId(`${id}#${Date.now()}`)}
+              />
+            </TabsContent>
+            <TabsContent value="quotes" className="m-0 flex-1 overflow-hidden">
+              <QuotesBrowser
+                bookId={bookId}
+                chapters={chapters}
+                onJumpToChapter={(chapterId) => setSelectedChapterId(chapterId)}
+              />
+            </TabsContent>
+          </Tabs>
         </section>
 
         <aside className="flex flex-col overflow-hidden bg-paper">
-          <Conversation bookId={bookId} />
+          <Conversation
+            bookId={bookId}
+            jumpToMessageId={jumpToMessageId ? jumpToMessageId.split("#")[0] : null}
+          />
         </aside>
       </main>
     </div>

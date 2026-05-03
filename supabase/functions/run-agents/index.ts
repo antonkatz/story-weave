@@ -87,6 +87,7 @@ const QUOTATION_TOOLS = [
                 text: { type: ["string", "null"] },
                 chapter_id: { type: ["string", "null"] },
                 section_id: { type: ["string", "null"] },
+                quote_id: { type: ["string", "null"] },
                 summary: { type: "string" },
               },
               required: ["type", "summary"],
@@ -195,11 +196,12 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { bookId, agent } = (await req.json()) as { bookId: string; agent: AgentKind };
+    const { bookId, agent, chapterId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string };
     if (!bookId) throw new Error("bookId required");
     if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
       throw new Error("agent must be one of: structure, quotation, writing");
     }
+    const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
 
     // Load full book context
     const [
@@ -212,6 +214,7 @@ serve(async (req) => {
       { data: bookPrompts },
       { data: allMsgs },
       { data: analyzed },
+      { data: contextLinks },
     ] = await Promise.all([
       supabase.from("books").select("title,description").eq("id", bookId).maybeSingle(),
       supabase.from("chapters").select("id,title,position,synopsis,theme").eq("book_id", bookId).order("position"),
@@ -222,14 +225,25 @@ serve(async (req) => {
       supabase.from("book_agent_prompts").select("agent,prompt").eq("book_id", bookId),
       supabase.from("messages").select("id,author_id,kind,body,transcript,created_at").eq("book_id", bookId).order("created_at"),
       supabase.from("message_agent_analysis").select("message_id").eq("book_id", bookId).eq("agent", agent),
+      supabase.from("chapter_message_context").select("chapter_id,message_id").eq("book_id", bookId),
     ]);
 
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
-    const newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
+    let newMessages: any[];
+    if (focusedChapter) {
+      const focusedMsgIds = new Set(
+        (contextLinks ?? [])
+          .filter((c: any) => c.chapter_id === focusedChapter)
+          .map((c: any) => c.message_id),
+      );
+      newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
+    } else {
+      newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
+    }
 
     if (newMessages.length === 0) {
       return new Response(
-        JSON.stringify({ inserted: 0, agent, message: "No new messages for this agent" }),
+        JSON.stringify({ inserted: 0, agent, message: focusedChapter ? "No context messages linked to this chapter yet." : "No new messages for this agent" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -274,18 +288,40 @@ serve(async (req) => {
 
     let actions: any[] = [];
     if (agent === "structure") {
+      const focusNote = focusedChapter
+        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.`
+        : "";
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("structure"),
-        `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, emit add_chapter only and skip the section this round. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.`,
+        `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, emit add_chapter only and skip the section this round. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.${focusNote}`,
         STRUCTURE_TOOLS,
         "structure_actions",
       );
+      // Attach the source message ids to add_chapter so the applier can record chapter context
+      const newMsgIds = newMessages.map((m: any) => m.id);
+      for (const a of actions) {
+        if (a.type === "add_chapter") {
+          a.source_message_ids = newMsgIds;
+        }
+        if (focusedChapter && a.type === "add_section" && !a.chapter_id) {
+          a.chapter_id = focusedChapter;
+        }
+      }
+      if (focusedChapter) {
+        // Keep only section-level actions touching the focused chapter
+        actions = actions.filter((a: any) => {
+          if (["add_section", "rename_section", "set_section_purpose", "remove_section"].includes(a.type)) {
+            return true;
+          }
+          return false;
+        });
+      }
     } else if (agent === "quotation") {
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("quotation"),
-        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, and the source_message_id (must be one of the msg ids above). Then emit assign_quote actions referencing existing chapter/section ids from the book context. Avoid duplicating quotes already listed.`,
+        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, the source_message_id (must be one of the msg ids above), and a chapter_id where the quote belongs (REQUIRED — must be one of the existing chapter ids). section_id is optional (null = quote attached at chapter level). Then emit additional assign_quote actions if the quote belongs to multiple chapters/sections. Avoid duplicating quotes already listed.`,
         QUOTATION_TOOLS,
         "quotation_actions",
       );
@@ -298,6 +334,14 @@ serve(async (req) => {
           }
           if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
             a.source_message_id = null;
+          }
+          // Default to first chapter if model didn't pick one and only one exists
+          if (!a.chapter_id && (chapters ?? []).length === 1) {
+            a.chapter_id = (chapters as any[])[0].id;
+          }
+          if (!a.chapter_id) {
+            console.warn("dropping create_quote without chapter_id", a);
+            return false;
           }
         }
         return true;
@@ -349,16 +393,18 @@ serve(async (req) => {
       if (insErr) throw insErr;
     }
 
-    // Mark messages analyzed for this agent
-    const analysisRows = newMessages.map((m: any) => ({
-      message_id: m.id,
-      agent,
-      book_id: bookId,
-    }));
-    if (analysisRows.length > 0) {
-      await supabase.from("message_agent_analysis").upsert(analysisRows, {
-        onConflict: "message_id,agent",
-      });
+    // Mark messages analyzed for this agent (skip in focused chapter mode)
+    if (!focusedChapter) {
+      const analysisRows = newMessages.map((m: any) => ({
+        message_id: m.id,
+        agent,
+        book_id: bookId,
+      }));
+      if (analysisRows.length > 0) {
+        await supabase.from("message_agent_analysis").upsert(analysisRows, {
+          onConflict: "message_id,agent",
+        });
+      }
     }
 
     return new Response(

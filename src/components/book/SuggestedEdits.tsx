@@ -236,14 +236,25 @@ async function applyAgentAction(edit: Edit, bookId: string) {
         .order("position", { ascending: false })
         .limit(1);
       const nextPos = (existing?.[0]?.position ?? -1) + 1;
-      const { error } = await supabase.from("chapters").insert({
-        book_id: bookId,
-        title: p.title || "New chapter",
-        position: nextPos,
-        synopsis: p.synopsis || "",
-        theme: p.theme || "",
-      });
+      const { data: created, error } = await supabase
+        .from("chapters")
+        .insert({
+          book_id: bookId,
+          title: p.title || "New chapter",
+          position: nextPos,
+          synopsis: p.synopsis || "",
+          theme: p.theme || "",
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+      // Link source messages as chapter context
+      const srcIds: string[] = Array.isArray(p.source_message_ids) ? p.source_message_ids : [];
+      if (created && srcIds.length > 0) {
+        await supabase.from("chapter_message_context").insert(
+          srcIds.map((mid) => ({ book_id: bookId, chapter_id: created.id, message_id: mid })),
+        );
+      }
       return;
     }
     case "rename_chapter": {
@@ -328,13 +339,25 @@ async function applyAgentAction(edit: Edit, bookId: string) {
     case "create_quote": {
       const text = typeof p.text === "string" ? p.text.trim() : "";
       if (!text) throw new Error("Agent did not provide quote text — reject this and re-run.");
-      const { error } = await supabase.from("quotes").insert({
-        book_id: bookId,
-        text,
-        source_message_id: p.source_message_id ?? null,
-        speaker_id: p.speaker_id ?? null,
-      });
+      if (!p.chapter_id) throw new Error("This quote isn't assigned to a chapter — reject and re-run the agent.");
+      const { data: created, error } = await supabase
+        .from("quotes")
+        .insert({
+          book_id: bookId,
+          text,
+          source_message_id: p.source_message_id ?? null,
+          speaker_id: p.speaker_id ?? null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+      const { error: plErr } = await supabase.from("quote_placements").insert({
+        book_id: bookId,
+        quote_id: created.id,
+        chapter_id: p.chapter_id,
+        section_id: p.section_id ?? null,
+      });
+      if (plErr) throw plErr;
       return;
     }
     case "assign_quote": {
