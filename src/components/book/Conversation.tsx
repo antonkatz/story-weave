@@ -17,6 +17,7 @@ type Message = {
   audio_path: string | null;
   transcript: string | null;
   created_at: string;
+  analyzed_at: string | null;
 };
 
 export function Conversation({ bookId }: { bookId: string }) {
@@ -29,6 +30,7 @@ export function Conversation({ bookId }: { bookId: string }) {
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [running, setRunning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
@@ -37,7 +39,7 @@ export function Conversation({ bookId }: { bookId: string }) {
     (async () => {
       const { data } = await supabase
         .from("messages")
-        .select("id,author_id,kind,body,audio_path,transcript,created_at")
+        .select("id,author_id,kind,body,audio_path,transcript,created_at,analyzed_at")
         .eq("book_id", bookId)
         .order("created_at", { ascending: true });
       if (active) setMessages((data ?? []) as Message[]);
