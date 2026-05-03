@@ -423,6 +423,10 @@ function ChapterEditor({
                 key={s.id}
                 section={s}
                 quotes={sectionQuotes(s.id)}
+                wrapperRef={(el) => {
+                  sectionRefs.current[s.id] = el;
+                }}
+                highlighted={highlightedSectionId === s.id}
               />
             ))}
           </div>
