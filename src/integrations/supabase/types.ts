@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_prompts_global: {
+        Row: {
+          agent: Database["public"]["Enums"]["agent_kind"]
+          prompt: string
+          updated_at: string
+        }
+        Insert: {
+          agent: Database["public"]["Enums"]["agent_kind"]
+          prompt: string
+          updated_at?: string
+        }
+        Update: {
+          agent?: Database["public"]["Enums"]["agent_kind"]
+          prompt?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      book_agent_prompts: {
+        Row: {
+          agent: Database["public"]["Enums"]["agent_kind"]
+          book_id: string
+          prompt: string
+          updated_at: string
+        }
+        Insert: {
+          agent: Database["public"]["Enums"]["agent_kind"]
+          book_id: string
+          prompt: string
+          updated_at?: string
+        }
+        Update: {
+          agent?: Database["public"]["Enums"]["agent_kind"]
+          book_id?: string
+          prompt?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       book_members: {
         Row: {
           book_id: string
@@ -73,6 +112,42 @@ export type Database = {
         }
         Relationships: []
       }
+      chapter_sections: {
+        Row: {
+          book_id: string
+          chapter_id: string
+          content: string
+          created_at: string
+          id: string
+          position: number
+          purpose: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          book_id: string
+          chapter_id: string
+          content?: string
+          created_at?: string
+          id?: string
+          position?: number
+          purpose?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          book_id?: string
+          chapter_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          position?: number
+          purpose?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chapters: {
         Row: {
           book_id: string
@@ -80,6 +155,8 @@ export type Database = {
           created_at: string
           id: string
           position: number
+          synopsis: string
+          theme: string
           title: string
           updated_at: string
         }
@@ -89,6 +166,8 @@ export type Database = {
           created_at?: string
           id?: string
           position?: number
+          synopsis?: string
+          theme?: string
           title: string
           updated_at?: string
         }
@@ -98,6 +177,8 @@ export type Database = {
           created_at?: string
           id?: string
           position?: number
+          synopsis?: string
+          theme?: string
           title?: string
           updated_at?: string
         }
@@ -157,6 +238,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          analyzed_at: string | null
           audio_path: string | null
           author_id: string
           body: string
@@ -167,6 +249,7 @@ export type Database = {
           transcript: string | null
         }
         Insert: {
+          analyzed_at?: string | null
           audio_path?: string | null
           author_id: string
           body?: string
@@ -177,6 +260,7 @@ export type Database = {
           transcript?: string | null
         }
         Update: {
+          analyzed_at?: string | null
           audio_path?: string | null
           author_id?: string
           body?: string
@@ -217,13 +301,81 @@ export type Database = {
         }
         Relationships: []
       }
+      quote_placements: {
+        Row: {
+          book_id: string
+          chapter_id: string
+          created_at: string
+          id: string
+          position: number
+          quote_id: string
+          section_id: string | null
+        }
+        Insert: {
+          book_id: string
+          chapter_id: string
+          created_at?: string
+          id?: string
+          position?: number
+          quote_id: string
+          section_id?: string | null
+        }
+        Update: {
+          book_id?: string
+          chapter_id?: string
+          created_at?: string
+          id?: string
+          position?: number
+          quote_id?: string
+          section_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_placements_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          book_id: string
+          created_at: string
+          id: string
+          source_message_id: string | null
+          speaker_id: string | null
+          text: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          id?: string
+          source_message_id?: string | null
+          speaker_id?: string | null
+          text: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          id?: string
+          source_message_id?: string | null
+          speaker_id?: string | null
+          text?: string
+        }
+        Relationships: []
+      }
       suggested_edits: {
         Row: {
+          action_type: string | null
+          agent: Database["public"]["Enums"]["agent_kind"] | null
           book_id: string
           chapter_id: string | null
           created_at: string
           id: string
-          kind: Database["public"]["Enums"]["edit_kind"]
+          kind: Database["public"]["Enums"]["edit_kind"] | null
+          payload: Json
           proposed_content: string
           proposed_title: string | null
           resolved_at: string | null
@@ -232,24 +384,30 @@ export type Database = {
           summary: string
         }
         Insert: {
+          action_type?: string | null
+          agent?: Database["public"]["Enums"]["agent_kind"] | null
           book_id: string
           chapter_id?: string | null
           created_at?: string
           id?: string
-          kind: Database["public"]["Enums"]["edit_kind"]
-          proposed_content: string
+          kind?: Database["public"]["Enums"]["edit_kind"] | null
+          payload?: Json
+          proposed_content?: string
           proposed_title?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
           status?: Database["public"]["Enums"]["edit_status"]
-          summary: string
+          summary?: string
         }
         Update: {
+          action_type?: string | null
+          agent?: Database["public"]["Enums"]["agent_kind"] | null
           book_id?: string
           chapter_id?: string | null
           created_at?: string
           id?: string
-          kind?: Database["public"]["Enums"]["edit_kind"]
+          kind?: Database["public"]["Enums"]["edit_kind"] | null
+          payload?: Json
           proposed_content?: string
           proposed_title?: string | null
           resolved_at?: string | null
@@ -300,6 +458,7 @@ export type Database = {
       redeem_invite: { Args: { _token: string }; Returns: string }
     }
     Enums: {
+      agent_kind: "structure" | "quotation" | "writing"
       edit_kind: "append" | "replace" | "new_chapter"
       edit_status: "pending" | "approved" | "rejected"
       member_role: "owner" | "co_author"
@@ -431,6 +590,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agent_kind: ["structure", "quotation", "writing"],
       edit_kind: ["append", "replace", "new_chapter"],
       edit_status: ["pending", "approved", "rejected"],
       member_role: ["owner", "co_author"],
