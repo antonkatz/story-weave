@@ -106,6 +106,19 @@ export function Conversation({ bookId, jumpToMessageId }: { bookId: string; jump
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  // Jump-to-message: scroll specific message into view + brief highlight
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!jumpToMessageId) return;
+    const el = document.getElementById(`msg-${jumpToMessageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightId(jumpToMessageId);
+      const t = setTimeout(() => setHighlightId(null), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [jumpToMessageId, messages.length]);
+
   const sendText = async () => {
     const body = text.trim();
     if (!body || !user) return;
