@@ -416,7 +416,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ inserted: rows.length, agent, analyzed: newMessages.length }),
+      JSON.stringify({ inserted: rows.length, agent, analyzed: newMessages.length, usedFallback }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
