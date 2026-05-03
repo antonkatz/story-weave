@@ -1,5 +1,6 @@
-// Literary Agents pipeline: Structure -> Quotation -> Writing.
-// Emits granular actions as rows in suggested_edits for human approval.
+// Literary Agents pipeline: Structure | Quotation | Writing.
+// Each agent can be invoked independently. Per-agent analysis is tracked in
+// `message_agent_analysis` so each agent only sees messages it hasn't processed.
 // deno-lint-ignore-file no-explicit-any
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,6 +13,8 @@ const corsHeaders = {
 };
 
 const MODEL = "google/gemini-3-flash-preview";
+
+type AgentKind = "structure" | "quotation" | "writing";
 
 const STRUCTURE_TOOLS = [
   {
@@ -77,16 +80,11 @@ const QUOTATION_TOOLS = [
             items: {
               type: "object",
               properties: {
-                type: {
-                  type: "string",
-                  enum: ["create_quote", "assign_quote"],
-                },
-                // for create_quote
-                quote_ref: { type: ["string", "null"], description: "Local id used to refer to a quote within this batch (e.g. q1)" },
+                type: { type: "string", enum: ["create_quote", "assign_quote"] },
+                quote_ref: { type: ["string", "null"] },
                 source_message_id: { type: ["string", "null"] },
                 speaker_id: { type: ["string", "null"] },
                 text: { type: ["string", "null"] },
-                // for assign_quote
                 chapter_id: { type: ["string", "null"] },
                 section_id: { type: ["string", "null"] },
                 summary: { type: "string" },
@@ -165,10 +163,10 @@ async function callAgent(
     const t = await res.text();
     console.error(`agent ${toolName} error`, res.status, t);
     if (res.status === 429 || res.status === 402) {
-      throw new Response(JSON.stringify({ error: res.status === 429 ? "Rate limit exceeded" : "AI credits exhausted" }), {
-        status: res.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      throw new Response(
+        JSON.stringify({ error: res.status === 429 ? "Rate limit exceeded" : "AI credits exhausted" }),
+        { status: res.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
     throw new Error(`AI gateway ${res.status}`);
   }
@@ -176,8 +174,7 @@ async function callAgent(
   const tc = json.choices?.[0]?.message?.tool_calls?.[0];
   if (!tc) return [];
   try {
-    const args = JSON.parse(tc.function.arguments);
-    return args.actions ?? [];
+    return JSON.parse(tc.function.arguments).actions ?? [];
   } catch (e) {
     console.error("parse args", e);
     return [];
@@ -198,45 +195,75 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { bookId } = await req.json();
+    const { bookId, agent } = (await req.json()) as { bookId: string; agent: AgentKind };
     if (!bookId) throw new Error("bookId required");
+    if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
+      throw new Error("agent must be one of: structure, quotation, writing");
+    }
 
+    // Load full book context
     const [
+      { data: book },
       { data: chapters },
       { data: sections },
       { data: quotes },
       { data: placements },
       { data: globalPrompts },
       { data: bookPrompts },
-      { data: newMessages },
+      { data: allMsgs },
+      { data: analyzed },
     ] = await Promise.all([
+      supabase.from("books").select("title,description").eq("id", bookId).maybeSingle(),
       supabase.from("chapters").select("id,title,position,synopsis,theme").eq("book_id", bookId).order("position"),
       supabase.from("chapter_sections").select("id,chapter_id,position,title,purpose,content").eq("book_id", bookId).order("position"),
       supabase.from("quotes").select("id,text,source_message_id,speaker_id").eq("book_id", bookId),
       supabase.from("quote_placements").select("id,quote_id,chapter_id,section_id").eq("book_id", bookId),
       supabase.from("agent_prompts_global").select("agent,prompt"),
       supabase.from("book_agent_prompts").select("agent,prompt").eq("book_id", bookId),
-      supabase.from("messages").select("id,author_id,kind,body,transcript,created_at").eq("book_id", bookId).is("analyzed_at", null).order("created_at"),
+      supabase.from("messages").select("id,author_id,kind,body,transcript,created_at").eq("book_id", bookId).order("created_at"),
+      supabase.from("message_agent_analysis").select("message_id").eq("book_id", bookId).eq("agent", agent),
     ]);
 
-    if (!newMessages || newMessages.length === 0) {
-      return new Response(JSON.stringify({ inserted: 0, byAgent: {}, message: "No new messages" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
+    const newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
+
+    if (newMessages.length === 0) {
+      return new Response(
+        JSON.stringify({ inserted: 0, agent, message: "No new messages for this agent" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    const promptFor = (agent: string) => {
-      const override = (bookPrompts ?? []).find((p: any) => p.agent === agent)?.prompt;
-      const global = (globalPrompts ?? []).find((p: any) => p.agent === agent)?.prompt;
+    const promptFor = (a: string) => {
+      const override = (bookPrompts ?? []).find((p: any) => p.agent === a)?.prompt;
+      const global = (globalPrompts ?? []).find((p: any) => p.agent === a)?.prompt;
       return override || global || "";
     };
+
+    const validMsgIds = new Set((allMsgs ?? []).map((m: any) => m.id));
 
     const chaptersText = (chapters ?? [])
       .map((c: any) => {
         const secs = (sections ?? []).filter((s: any) => s.chapter_id === c.id);
-        return `## Chapter "${c.title}" (id: ${c.id})\nSynopsis: ${c.synopsis || "(none)"}\nTheme: ${c.theme || "(none)"}\nSections:\n${secs.map((s: any) => `  - "${s.title}" (id: ${s.id}) — purpose: ${s.purpose || "(none)"}`).join("\n") || "  (no sections)"}`;
+        const secLines = secs
+          .map((s: any) => {
+            const placedCount = (placements ?? []).filter((p: any) => p.section_id === s.id).length;
+            const excerpt = (s.content ?? "").trim().slice(0, 800);
+            return `  - "${s.title}" (id: ${s.id}) — purpose: ${s.purpose || "(none)"} — ${placedCount} quote(s)${excerpt ? `\n    Existing prose: ${excerpt}${s.content.length > 800 ? "…" : ""}` : ""}`;
+          })
+          .join("\n") || "  (no sections)";
+        return `## Chapter "${c.title}" (id: ${c.id})\nSynopsis: ${c.synopsis || "(none)"}\nTheme: ${c.theme || "(none)"}\nSections:\n${secLines}`;
       })
       .join("\n\n");
+
+    const quotesText = (quotes ?? [])
+      .map((q: any) => {
+        const places = (placements ?? []).filter((p: any) => p.quote_id === q.id);
+        return `- (id: ${q.id}) "${q.text.slice(0, 500)}${q.text.length > 500 ? "…" : ""}" — placed in ${places.length} location(s)`;
+      })
+      .join("\n");
+
+    const bookContext = `# Book\nTitle: ${book?.title ?? "(untitled)"}\nDescription: ${book?.description ?? "(none)"}\n\n# Existing chapters & sections\n${chaptersText || "(none yet)"}\n\n# Existing quotes\n${quotesText || "(none)"}`;
 
     const messagesText = newMessages
       .map((m: any) => {
@@ -245,100 +272,81 @@ serve(async (req) => {
       })
       .join("\n");
 
-    const allMessagesForQuotes = newMessages
-      .map((m: any) => `- [msg ${m.id}] ${m.kind === "voice" ? (m.transcript ?? "") : m.body}`)
-      .join("\n");
-
-    const quotesText = (quotes ?? [])
-      .map((q: any) => {
-        const places = (placements ?? []).filter((p: any) => p.quote_id === q.id);
-        return `- (id: ${q.id}) "${q.text.slice(0, 200)}" — placed in ${places.length} location(s)`;
-      })
-      .join("\n");
-
-    // 1. Structure agent
-    const structureActions = await callAgent(
-      LOVABLE_API_KEY,
-      promptFor("structure"),
-      `# Current chapters & sections\n${chaptersText || "(none yet)"}\n\n# New conversation messages since last analysis\n${messagesText}\n\nPropose structure actions. Be conservative — only what the conversation supports.`,
-      STRUCTURE_TOOLS,
-      "structure_actions",
-    );
-
-    // 2. Quotation agent
-    const quotationActions = await callAgent(
-      LOVABLE_API_KEY,
-      promptFor("quotation"),
-      `# Current chapters & sections\n${chaptersText || "(none yet)"}\n\n# Existing quotes\n${quotesText || "(none)"}\n\n# New messages to extract quotes from\n${allMessagesForQuotes}\n\nFor each meaningful verbatim quote, emit a create_quote action (with a quote_ref like q1, q2). Then emit assign_quote actions referencing existing chapters/sections by id, OR (if it's a new quote) referring to it by quote_ref. Same quote may be assigned to multiple chapters.`,
-      QUOTATION_TOOLS,
-      "quotation_actions",
-    );
-
-    // 3. Writing agent — only if there are sections to write into
-    let writingActions: any[] = [];
-    if ((sections ?? []).length > 0) {
-      writingActions = await callAgent(
+    let actions: any[] = [];
+    if (agent === "structure") {
+      actions = await callAgent(
+        LOVABLE_API_KEY,
+        promptFor("structure"),
+        `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, emit add_chapter only and skip the section this round. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.`,
+        STRUCTURE_TOOLS,
+        "structure_actions",
+      );
+    } else if (agent === "quotation") {
+      actions = await callAgent(
+        LOVABLE_API_KEY,
+        promptFor("quotation"),
+        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, and the source_message_id (must be one of the msg ids above). Then emit assign_quote actions referencing existing chapter/section ids from the book context. Avoid duplicating quotes already listed.`,
+        QUOTATION_TOOLS,
+        "quotation_actions",
+      );
+      // Validate: drop create_quote with empty text or invalid source_message_id
+      actions = actions.filter((a: any) => {
+        if (a.type === "create_quote") {
+          if (!a.text || typeof a.text !== "string" || !a.text.trim()) {
+            console.warn("dropping create_quote with empty text", a);
+            return false;
+          }
+          if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
+            a.source_message_id = null;
+          }
+        }
+        return true;
+      });
+    } else if (agent === "writing") {
+      if ((sections ?? []).length === 0) {
+        return new Response(
+          JSON.stringify({ inserted: 0, agent, message: "No sections to write into. Run Structure first." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("writing"),
-        `# Chapters & sections\n${chaptersText}\n\n# Quotes available (with placements)\n${quotesText || "(none)"}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. Stay close to verbatim quotes — bridge with minimal connective prose.`,
+        `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.`,
         WRITING_TOOLS,
         "writing_actions",
       );
     }
 
-    // Build suggested_edits rows
-    const rows: any[] = [];
-    for (const a of structureActions) {
-      rows.push({
-        book_id: bookId,
-        agent: "structure",
-        action_type: a.type,
-        payload: a,
-        summary: a.summary,
-        chapter_id: a.chapter_id ?? null,
-      });
-    }
-    for (const a of quotationActions) {
-      rows.push({
-        book_id: bookId,
-        agent: "quotation",
-        action_type: a.type,
-        payload: a,
-        summary: a.summary,
-        chapter_id: a.chapter_id ?? null,
-      });
-    }
-    for (const a of writingActions) {
-      rows.push({
-        book_id: bookId,
-        agent: "writing",
-        action_type: a.type,
-        payload: a,
-        summary: a.summary,
-        chapter_id: a.chapter_id ?? null,
-        proposed_content: a.content ?? "",
-      });
-    }
+    const rows = actions.map((a: any) => ({
+      book_id: bookId,
+      agent,
+      action_type: a.type,
+      payload: a,
+      summary: a.summary,
+      chapter_id: a.chapter_id ?? null,
+      proposed_content: a.content ?? "",
+    }));
 
     if (rows.length > 0) {
       const { error: insErr } = await supabase.from("suggested_edits").insert(rows);
       if (insErr) throw insErr;
     }
 
-    // Mark messages analyzed
-    const ids = newMessages.map((m: any) => m.id);
-    await supabase.from("messages").update({ analyzed_at: new Date().toISOString() }).in("id", ids);
+    // Mark messages analyzed for this agent
+    const analysisRows = newMessages.map((m: any) => ({
+      message_id: m.id,
+      agent,
+      book_id: bookId,
+    }));
+    if (analysisRows.length > 0) {
+      await supabase.from("message_agent_analysis").upsert(analysisRows, {
+        onConflict: "message_id,agent",
+      });
+    }
 
     return new Response(
-      JSON.stringify({
-        inserted: rows.length,
-        byAgent: {
-          structure: structureActions.length,
-          quotation: quotationActions.length,
-          writing: writingActions.length,
-        },
-        analyzed: ids.length,
-      }),
+      JSON.stringify({ inserted: rows.length, agent, analyzed: newMessages.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
