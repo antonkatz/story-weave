@@ -22,7 +22,15 @@ type Message = {
 
 type AgentKind = "structure" | "quotation" | "writing";
 
-export function Conversation({ bookId, jumpToMessageId }: { bookId: string; jumpToMessageId?: string | null }) {
+export function Conversation({
+  bookId,
+  jumpToMessageId,
+  onApplied,
+}: {
+  bookId: string;
+  jumpToMessageId?: string | null;
+  onApplied?: (target: { chapterId: string; sectionId: string | null }) => void;
+}) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [profiles, setProfiles] = useState<ProfileMap>({});
