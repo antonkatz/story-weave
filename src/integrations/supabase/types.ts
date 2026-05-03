@@ -151,7 +151,6 @@ export type Database = {
       chapters: {
         Row: {
           book_id: string
-          content: string
           created_at: string
           id: string
           position: number
@@ -162,7 +161,6 @@ export type Database = {
         }
         Insert: {
           book_id: string
-          content?: string
           created_at?: string
           id?: string
           position?: number
@@ -173,7 +171,6 @@ export type Database = {
         }
         Update: {
           book_id?: string
-          content?: string
           created_at?: string
           id?: string
           position?: number
@@ -235,6 +232,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      message_agent_analysis: {
+        Row: {
+          agent: Database["public"]["Enums"]["agent_kind"]
+          analyzed_at: string
+          book_id: string
+          message_id: string
+        }
+        Insert: {
+          agent: Database["public"]["Enums"]["agent_kind"]
+          analyzed_at?: string
+          book_id: string
+          message_id: string
+        }
+        Update: {
+          agent?: Database["public"]["Enums"]["agent_kind"]
+          analyzed_at?: string
+          book_id?: string
+          message_id?: string
+        }
+        Relationships: []
       }
       messages: {
         Row: {
