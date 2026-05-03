@@ -41,13 +41,29 @@ export function Chapters({
   bookId,
   chapters,
   onChange,
+  selectedChapterId,
+  onSelectChapter,
+  onJumpToMessage,
 }: {
   bookId: string;
   chapters: Chapter[];
   onChange: () => void;
+  selectedChapterId?: string | null;
+  onSelectChapter?: (id: string | null) => void;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
-  const [activeId, setActiveId] = useState<string | null>(chapters[0]?.id ?? null);
+  const [internalId, setInternalId] = useState<string | null>(chapters[0]?.id ?? null);
+  const activeId = selectedChapterId ?? internalId;
+  const setActiveId = (id: string | null) => {
+    setInternalId(id);
+    onSelectChapter?.(id);
+  };
   const active = chapters.find((c) => c.id === activeId) ?? null;
+
+  useEffect(() => {
+    if (!activeId && chapters[0]) setActiveId(chapters[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapters, activeId]);
 
   useEffect(() => {
     if (!activeId && chapters[0]) setActiveId(chapters[0].id);
