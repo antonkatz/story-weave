@@ -60,7 +60,6 @@ export function Chapters({
       .insert({
         book_id: bookId,
         title: `Chapter ${chapters.length}`,
-        content: "",
         position: maxPos,
       })
       .select("id")
