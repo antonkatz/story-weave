@@ -230,20 +230,28 @@ serve(async (req) => {
 
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
     let newMessages: any[];
+    let usedFallback = false;
     if (focusedChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
           .filter((c: any) => c.chapter_id === focusedChapter)
           .map((c: any) => c.message_id),
       );
-      newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
+      if (focusedMsgIds.size > 0) {
+        newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
+      } else {
+        // Fallback: chapter has no linked context messages — use all messages so the
+        // agent has something to work with. Tell the model to focus on this chapter.
+        usedFallback = true;
+        newMessages = allMsgs ?? [];
+      }
     } else {
       newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
     }
 
     if (newMessages.length === 0) {
       return new Response(
-        JSON.stringify({ inserted: 0, agent, message: focusedChapter ? "No context messages linked to this chapter yet." : "No new messages for this agent" }),
+        JSON.stringify({ inserted: 0, agent, message: focusedChapter ? "No messages found in this book yet." : "No new messages for this agent" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
