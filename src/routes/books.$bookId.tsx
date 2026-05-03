@@ -28,8 +28,9 @@ type Book = {
 type Chapter = {
   id: string;
   title: string;
-  content: string;
   position: number;
+  synopsis?: string;
+  theme?: string;
 };
 
 type Member = {
