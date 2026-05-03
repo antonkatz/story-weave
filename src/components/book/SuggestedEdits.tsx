@@ -239,7 +239,6 @@ async function applyAgentAction(edit: Edit, bookId: string) {
       const { error } = await supabase.from("chapters").insert({
         book_id: bookId,
         title: p.title || "New chapter",
-        content: "",
         position: nextPos,
         synopsis: p.synopsis || "",
         theme: p.theme || "",
