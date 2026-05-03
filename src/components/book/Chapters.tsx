@@ -65,9 +65,6 @@ export function Chapters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapters, activeId]);
 
-  useEffect(() => {
-    if (!activeId && chapters[0]) setActiveId(chapters[0].id);
-  }, [chapters, activeId]);
 
   const addChapter = async () => {
     const maxPos = chapters.reduce((m, c) => Math.max(m, c.position), -1) + 1;
