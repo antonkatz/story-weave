@@ -374,7 +374,7 @@ export function Conversation({
           </Button>
         </div>
       </div>
-      <SuggestedEdits bookId={bookId} />
+      <SuggestedEdits bookId={bookId} onApplied={onApplied} />
     </div>
   );
 }
