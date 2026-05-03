@@ -318,15 +318,31 @@ serve(async (req) => {
       );
     }
 
-    const rows = actions.map((a: any) => ({
-      book_id: bookId,
-      agent,
-      action_type: a.type,
-      payload: a,
-      summary: a.summary,
-      chapter_id: a.chapter_id ?? null,
-      proposed_content: a.content ?? "",
-    }));
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validUuid = (v: any) => (typeof v === "string" && UUID_RE.test(v.trim()) ? v.trim() : null);
+    const validChapterIds = new Set((chapters ?? []).map((c: any) => c.id));
+    const validSectionIds = new Set((sections ?? []).map((s: any) => s.id));
+
+    const rows = actions.map((a: any) => {
+      // Sanitize uuid-ish fields in payload
+      for (const k of ["chapter_id", "other_chapter_id", "section_id", "source_message_id", "speaker_id"]) {
+        if (k in a) a[k] = validUuid(a[k]);
+      }
+      // Drop ids that don't actually exist (avoid FK / 22P02 errors)
+      if (a.chapter_id && !validChapterIds.has(a.chapter_id)) a.chapter_id = null;
+      if (a.other_chapter_id && !validChapterIds.has(a.other_chapter_id)) a.other_chapter_id = null;
+      if (a.section_id && !validSectionIds.has(a.section_id)) a.section_id = null;
+
+      return {
+        book_id: bookId,
+        agent,
+        action_type: a.type,
+        payload: a,
+        summary: a.summary,
+        chapter_id: a.chapter_id ?? null,
+        proposed_content: a.content ?? "",
+      };
+    });
 
     if (rows.length > 0) {
       const { error: insErr } = await supabase.from("suggested_edits").insert(rows);
@@ -353,7 +369,7 @@ serve(async (req) => {
     if (err instanceof Response) return err;
     console.error("run-agents error:", err);
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+      JSON.stringify({ error: err instanceof Error ? err.message : (err && typeof err === "object" ? (err as any).message ?? JSON.stringify(err) : String(err)) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
