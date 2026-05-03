@@ -288,18 +288,40 @@ serve(async (req) => {
 
     let actions: any[] = [];
     if (agent === "structure") {
+      const focusNote = focusedChapter
+        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.`
+        : "";
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("structure"),
-        `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, emit add_chapter only and skip the section this round. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.`,
+        `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, emit add_chapter only and skip the section this round. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.${focusNote}`,
         STRUCTURE_TOOLS,
         "structure_actions",
       );
+      // Attach the source message ids to add_chapter so the applier can record chapter context
+      const newMsgIds = newMessages.map((m: any) => m.id);
+      for (const a of actions) {
+        if (a.type === "add_chapter") {
+          a.source_message_ids = newMsgIds;
+        }
+        if (focusedChapter && a.type === "add_section" && !a.chapter_id) {
+          a.chapter_id = focusedChapter;
+        }
+      }
+      if (focusedChapter) {
+        // Keep only section-level actions touching the focused chapter
+        actions = actions.filter((a: any) => {
+          if (["add_section", "rename_section", "set_section_purpose", "remove_section"].includes(a.type)) {
+            return true;
+          }
+          return false;
+        });
+      }
     } else if (agent === "quotation") {
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("quotation"),
-        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, and the source_message_id (must be one of the msg ids above). Then emit assign_quote actions referencing existing chapter/section ids from the book context. Avoid duplicating quotes already listed.`,
+        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, the source_message_id (must be one of the msg ids above), and a chapter_id where the quote belongs (REQUIRED — must be one of the existing chapter ids). section_id is optional (null = quote attached at chapter level). Then emit additional assign_quote actions if the quote belongs to multiple chapters/sections. Avoid duplicating quotes already listed.`,
         QUOTATION_TOOLS,
         "quotation_actions",
       );
@@ -312,6 +334,14 @@ serve(async (req) => {
           }
           if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
             a.source_message_id = null;
+          }
+          // Default to first chapter if model didn't pick one and only one exists
+          if (!a.chapter_id && (chapters ?? []).length === 1) {
+            a.chapter_id = (chapters as any[])[0].id;
+          }
+          if (!a.chapter_id) {
+            console.warn("dropping create_quote without chapter_id", a);
+            return false;
           }
         }
         return true;
