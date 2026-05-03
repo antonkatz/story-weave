@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, GripVertical, Quote as QuoteIcon } from "lucide-react";
+import { Plus, Trash2, GripVertical, Quote as QuoteIcon, MessageSquare, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
