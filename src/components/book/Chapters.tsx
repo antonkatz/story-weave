@@ -126,6 +126,7 @@ export function Chapters({
             chapter={active}
             onSaved={onChange}
             onDelete={() => removeChapter(active.id)}
+            onJumpToMessage={onJumpToMessage}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm italic text-muted-foreground">
