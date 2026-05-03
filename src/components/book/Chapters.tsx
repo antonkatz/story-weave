@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 type Chapter = {
   id: string;
   title: string;
-  content: string;
   position: number;
   synopsis?: string;
   theme?: string;
