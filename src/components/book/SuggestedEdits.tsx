@@ -110,12 +110,20 @@ export function SuggestedEdits({
   const approve = async (edit: Edit) => {
     if (!user) return;
     try {
-      await applyEdit(edit, bookId);
+      const target = await applyEdit(edit, bookId);
       await supabase
         .from("suggested_edits")
         .update({ status: "approved", resolved_at: new Date().toISOString(), resolved_by: user.id })
         .eq("id", edit.id);
-      toast.success("Applied");
+      const id = toast.success("Applied", {
+        onDismiss: () => toast.dismiss(id),
+      });
+      // Make a click anywhere on the toast dismiss it
+      setTimeout(() => {
+        const el = document.querySelector(`[data-sonner-toast][data-id="${id}"]`);
+        el?.addEventListener("click", () => toast.dismiss(id), { once: true });
+      }, 0);
+      if (target && onApplied) onApplied(target);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not apply");
     }
