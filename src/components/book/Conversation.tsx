@@ -20,6 +20,8 @@ type Message = {
   analyzed_at: string | null;
 };
 
+type AgentKind = "structure" | "quotation" | "writing";
+
 export function Conversation({ bookId }: { bookId: string }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,7 +32,12 @@ export function Conversation({ bookId }: { bookId: string }) {
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [running, setRunning] = useState<AgentKind | null>(null);
+  const [analyzed, setAnalyzed] = useState<Record<AgentKind, Set<string>>>({
+    structure: new Set(),
+    quotation: new Set(),
+    writing: new Set(),
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
@@ -192,23 +199,77 @@ export function Conversation({ bookId }: { bookId: string }) {
     }
   };
 
-  const runAgents = async () => {
-    setRunning(true);
+  // Load per-agent analyzed message ids
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from("message_agent_analysis")
+        .select("message_id,agent")
+        .eq("book_id", bookId);
+      if (!active || !data) return;
+      const next: Record<AgentKind, Set<string>> = {
+        structure: new Set(),
+        quotation: new Set(),
+        writing: new Set(),
+      };
+      for (const r of data as { message_id: string; agent: AgentKind }[]) {
+        next[r.agent]?.add(r.message_id);
+      }
+      setAnalyzed(next);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [bookId]);
+
+  // Realtime: track new analysis rows
+  useEffect(() => {
+    const ch = supabase
+      .channel(`analysis:${bookId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
+        (payload) => {
+          const row = payload.new as { message_id: string; agent: AgentKind };
+          setAnalyzed((prev) => {
+            const next = { ...prev, [row.agent]: new Set(prev[row.agent]) };
+            next[row.agent].add(row.message_id);
+            return next;
+          });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [bookId]);
+
+  const runAgent = async (agent: AgentKind) => {
+    setRunning(agent);
     try {
-      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId } });
+      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId, agent } });
       if (error) throw error;
       const inserted = (data as { inserted?: number })?.inserted ?? 0;
-      const analyzed = (data as { analyzed?: number })?.analyzed ?? 0;
-      if (inserted === 0 && analyzed === 0) toast.info("No new messages to analyze.");
-      else toast.success(`Agents proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${analyzed} message${analyzed === 1 ? "" : "s"}.`);
+      const an = (data as { analyzed?: number })?.analyzed ?? 0;
+      const msg = (data as { message?: string })?.message;
+      if (msg) toast.info(msg);
+      else toast.success(`${capitalize(agent)} agent proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${an} message${an === 1 ? "" : "s"}.`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not run agents");
+      toast.error(e instanceof Error ? e.message : "Could not run agent");
     } finally {
-      setRunning(false);
+      setRunning(null);
     }
   };
 
-  const unanalyzedCount = messages.filter((m) => !m.analyzed_at).length;
+  const unanalyzedFor = (agent: AgentKind) =>
+    messages.filter((m) => !analyzed[agent].has(m.id)).length;
+
+  const agentList: { id: AgentKind; label: string }[] = [
+    { id: "structure", label: "Structure" },
+    { id: "quotation", label: "Quotation" },
+    { id: "writing", label: "Writing" },
+  ];
 
   return (
     <div className="flex h-full flex-col">
@@ -228,17 +289,24 @@ export function Conversation({ bookId }: { bookId: string }) {
           ))
         )}
       </div>
-      {unanalyzedCount > 0 && (
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-plum/5 px-3 py-2">
-          <span className="text-xs text-muted-foreground">
-            {unanalyzedCount} new message{unanalyzedCount === 1 ? "" : "s"} not analyzed
-          </span>
-          <Button size="sm" onClick={runAgents} disabled={running} variant="secondary">
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            {running ? "Running agents…" : "Run agents"}
-          </Button>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2 border-t border-border bg-plum/5 px-3 py-2">
+        <span className="text-xs text-muted-foreground">Run an agent:</span>
+        {agentList.map((a) => {
+          const count = unanalyzedFor(a.id);
+          return (
+            <Button
+              key={a.id}
+              size="sm"
+              variant="secondary"
+              disabled={running !== null || count === 0}
+              onClick={() => runAgent(a.id)}
+            >
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              {running === a.id ? `Running ${a.label}…` : `${a.label}${count > 0 ? ` (${count})` : ""}`}
+            </Button>
+          );
+        })}
+      </div>
       <div className="border-t border-border bg-paper/60 p-3">
         <div className="flex items-center gap-2">
           <Input
@@ -287,6 +355,10 @@ export function Conversation({ bookId }: { bookId: string }) {
       <SuggestedEdits bookId={bookId} />
     </div>
   );
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function MessageBubble({

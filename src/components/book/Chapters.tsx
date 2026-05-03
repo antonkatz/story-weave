@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 type Chapter = {
   id: string;
   title: string;
-  content: string;
   position: number;
   synopsis?: string;
   theme?: string;
@@ -61,7 +60,6 @@ export function Chapters({
       .insert({
         book_id: bookId,
         title: `Chapter ${chapters.length}`,
-        content: "",
         position: maxPos,
       })
       .select("id")
@@ -140,7 +138,6 @@ function ChapterEditor({
   const [title, setTitle] = useState(chapter.title);
   const [synopsis, setSynopsis] = useState(chapter.synopsis ?? "");
   const [theme, setTheme] = useState(chapter.theme ?? "");
-  const [content, setContent] = useState(chapter.content);
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<Section[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -150,8 +147,7 @@ function ChapterEditor({
     setTitle(chapter.title);
     setSynopsis(chapter.synopsis ?? "");
     setTheme(chapter.theme ?? "");
-    setContent(chapter.content);
-  }, [chapter.id, chapter.title, chapter.content, chapter.synopsis, chapter.theme]);
+  }, [chapter.id, chapter.title, chapter.synopsis, chapter.theme]);
 
   const reloadSections = async () => {
     const { data } = await supabase
@@ -206,7 +202,7 @@ function ChapterEditor({
     setSaving(true);
     const { error } = await supabase
       .from("chapters")
-      .update({ title: title.trim() || "Untitled", content, synopsis, theme })
+      .update({ title: title.trim() || "Untitled", synopsis, theme })
       .eq("id", chapter.id);
     setSaving(false);
     if (error) {
@@ -310,19 +306,6 @@ function ChapterEditor({
           </div>
         )}
       </div>
-
-      <details className="rounded-md border border-border bg-paper/40 p-3">
-        <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground">
-          Free-form chapter content (legacy)
-        </summary>
-        <Textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={10}
-          placeholder="Free-form prose for this chapter…"
-          className="mt-2 resize-none bg-paper font-serif text-base leading-relaxed"
-        />
-      </details>
 
       <div className="flex justify-end">
         <Button onClick={save} disabled={saving}>
