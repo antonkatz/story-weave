@@ -1,65 +1,91 @@
-## 1. Remove legacy `chapters.content`
+## Goal
 
-**DB migration:**
-- `ALTER TABLE chapters DROP COLUMN content;`
-- Drop legacy enum values / columns on `suggested_edits` that only made sense for whole-chapter prose: keep `proposed_content` (still used by `write_section`) but the legacy `kind` / `proposed_title` fallback path becomes dead. Leave the columns (data already there) but stop writing to them.
+Extend the Literary Agents system with quote-chapter coupling, a Quotes browser, message→chapter context links, and a per-chapter Structure agent run.
 
-**UI (`src/components/book/Chapters.tsx`):**
-- Remove `content` from `Chapter` type, from `ChapterEditor` state, from the `<details>Free-form chapter content (legacy)</details>` block, and from the `update({ content })` call in `save()`.
-- Remove `content: ""` from `addChapter` insert.
+## 1. Quotes always assigned to a chapter
 
-**Backend (`run-agents/index.ts`):** no change needed — it never read `chapters.content`.
+**Edge function (`run-agents`)** — Quotation agent:
 
-**SuggestedEdits applier:** remove `applyLegacyEdit` branch for `append`/`replace` against `chapters.content`. Keep `new_chapter` legacy path but without content (or drop entirely — there should be no legacy rows worth keeping).
+- Update the tool prompt + post-processing so every `create_quote` action also carries a `chapter_id` (and optionally `section_id`). If the model omits it, drop the action (or fall back to the first chapter when there's only one).
+- After the quote is created, the existing `assign_quote` flow remains for additional placements.
 
-## 2. Fix `add_section` "missing chapter_id"
+**Applier (`SuggestedEdits.tsx`)**:
 
-The Structure agent emits `add_section` with a `chapter_id` *inside the payload*, but the run-agents code only copies `a.chapter_id` onto the row's top-level `chapter_id` column. The applier reads `edit.chapter_id` (top-level). That should already work — but for **newly added chapters in the same batch**, the agent has no real id to reference, so it leaves `chapter_id` null.
+- `create_quote` case: insert into `quotes`, then in the same transaction insert a `quote_placements` row using `payload.chapter_id` (+ optional `section_id`). Reject if no valid chapter exists.
 
-**Fix:**
-- `SuggestedEdits.tsx` → `add_section` case: if `edit.chapter_id` is null, fall back to `payload.chapter_id`. If still null, surface a clearer error: *"This section was proposed for a new chapter — approve the add_chapter first, then re-run agents."*
-- Tighten the structure agent prompt context: emphasize that `chapter_id` MUST be one of the listed existing ids; do not invent ids; if the section belongs to a not-yet-created chapter, skip it this round.
+## 2. Quotes browser tab
 
-## 3. Per-agent run buttons
+**New tab system on the chapters pane** (`src/routes/books.$bookId.tsx`):
 
-**Backend:** accept `{ bookId, agent?: "structure" | "quotation" | "writing" | "all" }`. Run only that agent (skip the others, do not mark messages as analyzed unless `all` finished — see below). Return `{ inserted, agent }`.
+- Replace the static "Chapters" header in the left pane with a small Tabs control: **Chapters** | **Quotes**.
+- New component `src/components/book/QuotesBrowser.tsx`:
+  - Lists every quote in the book with text, source message preview, speaker, and a list of chapter/section placements.
+  - Each placement row is clickable → selects that chapter (and section if any) in the Chapters tab.
+  - Allow basic actions: delete quote, copy placement to a different chapter/section (simple selects), unplace. Since a quote can be assigned to multiple chapters/sections, the unplace action must be specific to the chapter/section. 
 
-**Mark analyzed semantics:** only mark messages `analyzed_at` after the agent that ran completes. Add a per-agent tracking column:
-- New table `message_agent_analysis (message_id, agent, analyzed_at, primary key (message_id, agent))`.
-- The query for "unanalyzed messages" becomes per-agent: messages without a row for that agent.
-- Drop reliance on `messages.analyzed_at` going forward (keep column for now as legacy).
+## 3. Quotes can attach at chapter level (no section)
 
-**UI (`Conversation.tsx`):**
-- Replace the single "Run agents" pill with three buttons: "Run Structure", "Run Quotation", "Run Writing" (each shows count of messages unanalyzed *for that agent*).
-- Compute counts via a small query against `message_agent_analysis` left-joined with messages, refreshed on realtime message inserts.
+Already supported by schema (`quote_placements.section_id` is nullable). Make sure:
 
-Sequential constraint is gone — user picks order. (Quotation still needs structure ids to exist for `assign_quote`, but that's already a soft constraint surfaced as a friendly error.)
+- Quotation agent prompt explicitly allows `section_id: null`.
+- `assign_quote` applier already allows null section_id ✓ — no change needed beyond prompt clarity.
+- Quotes browser exposes "Chapter only" as a placement option.
 
-## 4. Agents must see existing book content
+## 4. Chapter "Context" — message references
 
-Currently the prompts include chapter titles/synopses/themes/section titles/purposes — but not the **section prose** the writing agent has already produced, nor existing quote text in full.
+**Schema (new migration)** — `chapter_message_context` table:
 
-**Update `chaptersText` builder in `run-agents`:**
-- For each section include `content` (truncated to ~800 chars) so agents avoid duplicating prose.
-- For each chapter include count of placed quotes per section.
+```text
+chapter_message_context (
+  id uuid pk default gen_random_uuid(),
+  book_id uuid not null,
+  chapter_id uuid not null,
+  message_id uuid not null,
+  created_at timestamptz default now(),
+  unique (chapter_id, message_id)
+)
+```
 
-**Add a "Book context" block to all three agent prompts** with: book title + description (fetch from `books`), full chapter outline including section content excerpts, and the full text of all existing quotes (not just `id` + first 200 chars — bump to 500 and include speaker).
+With RLS mirroring `chapter_sections` (member-based via `is_book_member(book_id, ...)`).
 
-## 5. Fix `create_quote` "could not apply"
+**Auto-population**:
 
-`quotes.text` is `NOT NULL`. The agent sometimes emits `create_quote` with `text: null` (the schema declares `text: ["string","null"]`). The applier throws "Missing quote text" → toast says "could not apply".
+- When the **Structure agent** creates a chapter via `add_chapter`, record the analyzed message ids that produced it. Easiest path: the edge function returns the new-message ids it analyzed and the applier links them when an `add_chapter` action is approved. Implementation: include `source_message_ids: string[]` in the `add_chapter` payload (the edge function attaches the current batch of `newMessages` ids), and the applier inserts them into `chapter_message_context` after creating the chapter.
+- Same for `add_section` so we know which conversation triggered it (optional).
 
-**Fixes:**
-- Tighten tool schema: `text` for `create_quote` should be required non-null. Mark `quote_ref` required too, and split into two tool entries (`create_quote` vs `assign_quote`) or use per-action validation server-side before pushing to `suggested_edits` (skip malformed actions, log them).
-- Also: `source_message_id` may be a fabricated string — validate it against the message ids passed in; if invalid, store `null` instead of letting an FK-less insert succeed but break later joins.
-- In `SuggestedEdits.tsx`, surface the actual error string from Supabase (currently we only show generic "could not apply" because we throw a generic Error). Replace with `e.message ?? e.toString()` already in place — verify the inner error is propagated, not swallowed.
+**UI in `Chapters.tsx**` (chapter editor):
 
-## Files touched
+- New "Context" section listing referenced messages (author + timestamp + first ~120 chars of body/transcript).
+- Each item is a button that calls a new `onJumpToMessage(messageId)` callback passed down from `books.$bookId.tsx`.
+- `Conversation.tsx` accepts a `jumpToMessageId` prop; on change it scrolls the matching message into view and applies a brief highlight ring.
+- Manual add/remove of context messages (small "+ link message" picker) — optional, defer if scope tight.
 
-- `supabase/migrations/<new>.sql` — drop `chapters.content`; create `message_agent_analysis`.
-- `supabase/functions/run-agents/index.ts` — per-agent mode, richer context, input validation, per-agent analyzed tracking.
-- `src/components/book/Chapters.tsx` — remove legacy content UI + field.
-- `src/components/book/Conversation.tsx` — three per-agent buttons with counts.
-- `src/components/book/SuggestedEdits.tsx` — payload fallbacks, clearer errors, drop legacy chapter-content appliers.
+## 5. Per-chapter Structure agent
 
-No new env/secrets needed.
+**Edge function** — extend `run-agents`:
+
+- Accept optional `chapterId` in the body. When present and `agent === "structure"`:
+  - Restrict `newMessages` to messages linked to that chapter via `chapter_message_context` (regardless of analysis state).
+  - Tighten the system prompt to say: "Only propose section-level actions for chapter `<id>` — add_section / rename_section / set_section_purpose / remove_section / merging via remove_section + new add_section. Do not touch other chapters."
+  - Skip the `message_agent_analysis` upsert in this mode (it's a focused re-run, not a global pass).
+
+**UI in `Chapters.tsx**` chapter editor:
+
+- New button "Run Structure agent on this chapter" near the Sections header.
+- Calls `supabase.functions.invoke("run-agents", { body: { bookId, agent: "structure", chapterId } })`.
+- Resulting `suggested_edits` show up in the same SuggestedEdits panel in the conversation pane (no change needed there).
+
+## Files to touch / add
+
+- `supabase/migrations/<ts>_chapter_message_context.sql` (new)
+- `supabase/functions/run-agents/index.ts` (chapter scoping, quote→chapter coupling, source_message_ids on add_chapter)
+- `src/components/book/SuggestedEdits.tsx` (create_quote inserts placement; add_chapter inserts context links)
+- `src/components/book/QuotesBrowser.tsx` (new)
+- `src/components/book/Chapters.tsx` (Context list, jump callback, per-chapter Structure run button)
+- `src/components/book/Conversation.tsx` (accept `jumpToMessageId`, scroll + highlight)
+- `src/routes/books.$bookId.tsx` (Tabs: Chapters / Quotes; lift selected chapter + jumpToMessageId state across panes)
+
+## Notes
+
+- No new auth/roles needed; all new tables piggy-back on existing `is_book_member` policies.
+- Realtime subscriptions added for `chapter_message_context` (filtered by book) so the Context list stays live.

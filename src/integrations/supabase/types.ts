@@ -112,6 +112,30 @@ export type Database = {
         }
         Relationships: []
       }
+      chapter_message_context: {
+        Row: {
+          book_id: string
+          chapter_id: string
+          created_at: string
+          id: string
+          message_id: string
+        }
+        Insert: {
+          book_id: string
+          chapter_id: string
+          created_at?: string
+          id?: string
+          message_id: string
+        }
+        Update: {
+          book_id?: string
+          chapter_id?: string
+          created_at?: string
+          id?: string
+          message_id?: string
+        }
+        Relationships: []
+      }
       chapter_sections: {
         Row: {
           book_id: string
