@@ -49,7 +49,15 @@ function BookPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("chapters");
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
+
+  const handleApplied = useCallback((target: { chapterId: string; sectionId: string | null }) => {
+    setActiveTab("chapters");
+    setSelectedChapterId(target.chapterId);
+    setSelectedSectionId(target.sectionId ? `${target.sectionId}#${Date.now()}` : null);
+  }, []);
 
   const reloadChapters = useCallback(async () => {
     const { data } = await supabase
