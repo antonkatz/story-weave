@@ -87,6 +87,7 @@ const QUOTATION_TOOLS = [
                 text: { type: ["string", "null"] },
                 chapter_id: { type: ["string", "null"] },
                 section_id: { type: ["string", "null"] },
+                quote_id: { type: ["string", "null"] },
                 summary: { type: "string" },
               },
               required: ["type", "summary"],
