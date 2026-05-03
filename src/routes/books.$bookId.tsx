@@ -50,7 +50,7 @@ function BookPage() {
   const reloadChapters = useCallback(async () => {
     const { data } = await supabase
       .from("chapters")
-      .select("id,title,content,position")
+      .select("id,title,position,synopsis,theme")
       .eq("book_id", bookId)
       .order("position", { ascending: true });
     setChapters((data ?? []) as Chapter[]);
