@@ -156,12 +156,14 @@ function ChapterEditor({
   onSaved,
   onDelete,
   onJumpToMessage,
+  selectedSectionId,
 }: {
   bookId: string;
   chapter: Chapter;
   onSaved: () => void;
   onDelete: () => void;
   onJumpToMessage?: (messageId: string) => void;
+  selectedSectionId?: string | null;
 }) {
   const [title, setTitle] = useState(chapter.title);
   const [synopsis, setSynopsis] = useState(chapter.synopsis ?? "");
