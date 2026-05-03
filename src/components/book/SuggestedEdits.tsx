@@ -232,15 +232,19 @@ function extractPreview(payload: Record<string, unknown>): string {
 // ============================================================
 // Action appliers
 // ============================================================
-async function applyEdit(edit: Edit, bookId: string) {
+async function applyEdit(edit: Edit, bookId: string): Promise<EditTarget | null> {
   if (edit.action_type) {
     return applyAgentAction(edit, bookId);
   }
-  // Legacy kind-based
   return applyLegacyEdit(edit, bookId);
 }
 
-async function applyAgentAction(edit: Edit, bookId: string) {
+async function lookupSectionChapter(sectionId: string): Promise<string | null> {
+  const { data } = await supabase.from("chapter_sections").select("chapter_id").eq("id", sectionId).maybeSingle();
+  return data?.chapter_id ?? null;
+}
+
+async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget | null> {
   const p = (edit.payload ?? {}) as Record<string, any>;
   const t = edit.action_type!;
   switch (t) {
@@ -264,38 +268,36 @@ async function applyAgentAction(edit: Edit, bookId: string) {
         .select("id")
         .single();
       if (error) throw error;
-      // Link source messages as chapter context
       const srcIds: string[] = Array.isArray(p.source_message_ids) ? p.source_message_ids : [];
       if (created && srcIds.length > 0) {
         await supabase.from("chapter_message_context").insert(
           srcIds.map((mid) => ({ book_id: bookId, chapter_id: created.id, message_id: mid })),
         );
       }
-      return;
+      return { chapterId: created.id, sectionId: null };
     }
     case "rename_chapter": {
       if (!edit.chapter_id) throw new Error("Missing chapter_id");
       const { error } = await supabase.from("chapters").update({ title: p.title }).eq("id", edit.chapter_id);
       if (error) throw error;
-      return;
+      return { chapterId: edit.chapter_id, sectionId: null };
     }
     case "set_chapter_synopsis": {
       if (!edit.chapter_id) throw new Error("Missing chapter_id");
       const { error } = await supabase.from("chapters").update({ synopsis: p.synopsis ?? "" }).eq("id", edit.chapter_id);
       if (error) throw error;
-      return;
+      return { chapterId: edit.chapter_id, sectionId: null };
     }
     case "set_chapter_theme": {
       if (!edit.chapter_id) throw new Error("Missing chapter_id");
       const { error } = await supabase.from("chapters").update({ theme: p.theme ?? "" }).eq("id", edit.chapter_id);
       if (error) throw error;
-      return;
+      return { chapterId: edit.chapter_id, sectionId: null };
     }
     case "combine_chapters": {
       const targetId = edit.chapter_id ?? p.chapter_id;
       const otherId = p.other_chapter_id;
       if (!targetId || !otherId) throw new Error("Missing chapter ids");
-      // Move sections + placements from other → target, then delete other.
       const { error: secErr } = await supabase
         .from("chapter_sections")
         .update({ chapter_id: targetId })
@@ -308,7 +310,7 @@ async function applyAgentAction(edit: Edit, bookId: string) {
       if (plErr) throw plErr;
       const { error: delErr } = await supabase.from("chapters").delete().eq("id", otherId);
       if (delErr) throw delErr;
-      return;
+      return { chapterId: targetId, sectionId: null };
     }
     case "add_section": {
       const chapterId = edit.chapter_id ?? p.chapter_id;
@@ -324,33 +326,40 @@ async function applyAgentAction(edit: Edit, bookId: string) {
         .order("position", { ascending: false })
         .limit(1);
       const nextPos = (existing?.[0]?.position ?? -1) + 1;
-      const { error } = await supabase.from("chapter_sections").insert({
-        book_id: bookId,
-        chapter_id: chapterId,
-        title: p.title || "New section",
-        purpose: p.purpose || "",
-        position: nextPos,
-      });
+      const { data: created, error } = await supabase
+        .from("chapter_sections")
+        .insert({
+          book_id: bookId,
+          chapter_id: chapterId,
+          title: p.title || "New section",
+          purpose: p.purpose || "",
+          position: nextPos,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
-      return;
+      return { chapterId, sectionId: created.id };
     }
     case "rename_section": {
       if (!p.section_id) throw new Error("Missing section_id");
+      const chapterId = await lookupSectionChapter(p.section_id);
       const { error } = await supabase.from("chapter_sections").update({ title: p.title }).eq("id", p.section_id);
       if (error) throw error;
-      return;
+      return chapterId ? { chapterId, sectionId: p.section_id } : null;
     }
     case "set_section_purpose": {
       if (!p.section_id) throw new Error("Missing section_id");
+      const chapterId = await lookupSectionChapter(p.section_id);
       const { error } = await supabase.from("chapter_sections").update({ purpose: p.purpose ?? "" }).eq("id", p.section_id);
       if (error) throw error;
-      return;
+      return chapterId ? { chapterId, sectionId: p.section_id } : null;
     }
     case "remove_section": {
       if (!p.section_id) throw new Error("Missing section_id");
+      const chapterId = await lookupSectionChapter(p.section_id);
       const { error } = await supabase.from("chapter_sections").delete().eq("id", p.section_id);
       if (error) throw error;
-      return;
+      return chapterId ? { chapterId, sectionId: null } : null;
     }
     case "create_quote": {
       const text = typeof p.text === "string" ? p.text.trim() : "";
@@ -374,10 +383,9 @@ async function applyAgentAction(edit: Edit, bookId: string) {
         section_id: p.section_id ?? null,
       });
       if (plErr) throw plErr;
-      return;
+      return { chapterId: p.chapter_id, sectionId: p.section_id ?? null };
     }
     case "assign_quote": {
-      // Requires concrete quote_id (not quote_ref)
       const quote_id = p.quote_id;
       if (!quote_id) throw new Error("Approve the create_quote first, then re-run the agent so this can reference its id.");
       if (!p.chapter_id) throw new Error("Missing chapter_id");
@@ -388,29 +396,31 @@ async function applyAgentAction(edit: Edit, bookId: string) {
         section_id: p.section_id ?? null,
       });
       if (error) throw error;
-      return;
+      return { chapterId: p.chapter_id, sectionId: p.section_id ?? null };
     }
     case "write_section":
     case "replace_section": {
       if (!p.section_id) throw new Error("Missing section_id");
+      const chapterId = await lookupSectionChapter(p.section_id);
       const { error } = await supabase.from("chapter_sections").update({ content: p.content ?? "" }).eq("id", p.section_id);
       if (error) throw error;
-      return;
+      return chapterId ? { chapterId, sectionId: p.section_id } : null;
     }
     case "append_to_section": {
       if (!p.section_id) throw new Error("Missing section_id");
+      const chapterId = await lookupSectionChapter(p.section_id);
       const { data: sec } = await supabase.from("chapter_sections").select("content").eq("id", p.section_id).single();
       const next = [sec?.content ?? "", p.content ?? ""].filter(Boolean).join("\n\n");
       const { error } = await supabase.from("chapter_sections").update({ content: next }).eq("id", p.section_id);
       if (error) throw error;
-      return;
+      return chapterId ? { chapterId, sectionId: p.section_id } : null;
     }
     default:
       throw new Error(`Unknown action_type: ${t}`);
   }
 }
 
-async function applyLegacyEdit(_edit: Edit, _bookId: string) {
+async function applyLegacyEdit(_edit: Edit, _bookId: string): Promise<EditTarget | null> {
   throw new Error(
     "This is a legacy chapter-content edit. Free-form chapter prose has been removed — please reject and re-run the agents.",
   );
