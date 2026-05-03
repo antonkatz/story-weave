@@ -297,7 +297,7 @@ serve(async (req) => {
     let actions: any[] = [];
     if (agent === "structure") {
       const focusNote = focusedChapter
-        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.`
+        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.${usedFallback ? " This chapter has no explicitly-linked context messages, so the messages above are the full book conversation — infer which parts relate to this chapter from its title/synopsis/theme." : ""}`
         : "";
       actions = await callAgent(
         LOVABLE_API_KEY,
