@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Paperclip, Send, Square } from "lucide-react";
+import { Mic, Paperclip, Send, Square, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
+import { SuggestedEdits } from "@/components/book/SuggestedEdits";
 
 type ProfileMap = Record<string, { display_name: string; avatar_url: string | null }>;
 
