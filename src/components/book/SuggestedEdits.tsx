@@ -326,10 +326,11 @@ async function applyAgentAction(edit: Edit, bookId: string) {
       return;
     }
     case "create_quote": {
-      if (!p.text) throw new Error("Missing quote text");
+      const text = typeof p.text === "string" ? p.text.trim() : "";
+      if (!text) throw new Error("Agent did not provide quote text — reject this and re-run.");
       const { error } = await supabase.from("quotes").insert({
         book_id: bookId,
-        text: p.text,
+        text,
         source_message_id: p.source_message_id ?? null,
         speaker_id: p.speaker_id ?? null,
       });
