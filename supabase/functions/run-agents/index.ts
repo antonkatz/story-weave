@@ -230,20 +230,28 @@ serve(async (req) => {
 
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
     let newMessages: any[];
+    let usedFallback = false;
     if (focusedChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
           .filter((c: any) => c.chapter_id === focusedChapter)
           .map((c: any) => c.message_id),
       );
-      newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
+      if (focusedMsgIds.size > 0) {
+        newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
+      } else {
+        // Fallback: chapter has no linked context messages — use all messages so the
+        // agent has something to work with. Tell the model to focus on this chapter.
+        usedFallback = true;
+        newMessages = allMsgs ?? [];
+      }
     } else {
       newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
     }
 
     if (newMessages.length === 0) {
       return new Response(
-        JSON.stringify({ inserted: 0, agent, message: focusedChapter ? "No context messages linked to this chapter yet." : "No new messages for this agent" }),
+        JSON.stringify({ inserted: 0, agent, message: focusedChapter ? "No messages found in this book yet." : "No new messages for this agent" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -289,7 +297,7 @@ serve(async (req) => {
     let actions: any[] = [];
     if (agent === "structure") {
       const focusNote = focusedChapter
-        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.`
+        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.${usedFallback ? " This chapter has no explicitly-linked context messages, so the messages above are the full book conversation — infer which parts relate to this chapter from its title/synopsis/theme." : ""}`
         : "";
       actions = await callAgent(
         LOVABLE_API_KEY,
@@ -408,7 +416,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ inserted: rows.length, agent, analyzed: newMessages.length }),
+      JSON.stringify({ inserted: rows.length, agent, analyzed: newMessages.length, usedFallback }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {

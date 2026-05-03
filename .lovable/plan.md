@@ -1,91 +1,69 @@
-## Goal
+# Plan
 
-Extend the Literary Agents system with quote-chapter coupling, a Quotes browser, message→chapter context links, and a per-chapter Structure agent run.
+## 1. Navigate to the affected chapter/section after approving a suggestion
 
-## 1. Quotes always assigned to a chapter
+**`SuggestedEdits.tsx`**
+- Change `applyAgentAction` so each case **returns** `{ chapterId, sectionId } | null` describing where the edit landed:
+  - `add_chapter`, `rename_chapter`, `set_chapter_synopsis`, `set_chapter_theme`, `combine_chapters` → `{ chapterId }`
+  - `add_section` → `{ chapterId, sectionId: created.id }` (capture the inserted row's id)
+  - `rename_section` / `set_section_purpose` / `remove_section` → look up `chapter_id` from `chapter_sections` before the mutation, return `{ chapterId, sectionId }`
+  - `create_quote` → `{ chapterId: p.chapter_id, sectionId: p.section_id ?? null }`
+  - `assign_quote` → same
+  - `write_section` / `append_to_section` / `replace_section` → fetch `chapter_id` from `chapter_sections` for the given `section_id`, return `{ chapterId, sectionId }`
+- `SuggestedEdits` accepts a new prop `onApplied?: (target: { chapterId: string; sectionId: string | null }) => void` and calls it after the row is marked approved.
 
-**Edge function (`run-agents`)** — Quotation agent:
+**`books.$bookId.tsx`**
+- Convert the chapters/quotes `Tabs` from uncontrolled to **controlled** (`value`/`onValueChange` + `activeTab` state) so we can switch back to "chapters" automatically when an edit lands.
+- Add `selectedSectionId` state; on `onApplied`, set both `selectedChapterId`, `selectedSectionId`, and `activeTab="chapters"`.
+- Pass `onApplied` into `<Conversation />` → `<SuggestedEdits />` (Conversation already renders SuggestedEdits, so thread the prop through).
 
-- Update the tool prompt + post-processing so every `create_quote` action also carries a `chapter_id` (and optionally `section_id`). If the model omits it, drop the action (or fall back to the first chapter when there's only one).
-- After the quote is created, the existing `assign_quote` flow remains for additional placements.
+**`Chapters.tsx` / `ChapterEditor`**
+- Accept `selectedSectionId` and scroll/highlight the matching `<SectionEditor>` when it changes (use `ref` map + `scrollIntoView` + a temporary `ring-2 ring-primary` class via a `useEffect` timeout, mirroring the message-jump pattern).
+- The chapter list already re-selects via `selectedChapterId`, and `chapter_sections` realtime subscription already refreshes the section list, so newly-created sections appear without manual reload.
 
-**Applier (`SuggestedEdits.tsx`)**:
+This single mechanism covers items **1, 2, and 3** (sections, quotes, writing).
 
-- `create_quote` case: insert into `quotes`, then in the same transaction insert a `quote_placements` row using `payload.chapter_id` (+ optional `section_id`). Reject if no valid chapter exists.
+## 2. Click-to-dismiss "Applied" toast
 
-## 2. Quotes browser tab
-
-**New tab system on the chapters pane** (`src/routes/books.$bookId.tsx`):
-
-- Replace the static "Chapters" header in the left pane with a small Tabs control: **Chapters** | **Quotes**.
-- New component `src/components/book/QuotesBrowser.tsx`:
-  - Lists every quote in the book with text, source message preview, speaker, and a list of chapter/section placements.
-  - Each placement row is clickable → selects that chapter (and section if any) in the Chapters tab.
-  - Allow basic actions: delete quote, copy placement to a different chapter/section (simple selects), unplace. Since a quote can be assigned to multiple chapters/sections, the unplace action must be specific to the chapter/section. 
-
-## 3. Quotes can attach at chapter level (no section)
-
-Already supported by schema (`quote_placements.section_id` is nullable). Make sure:
-
-- Quotation agent prompt explicitly allows `section_id: null`.
-- `assign_quote` applier already allows null section_id ✓ — no change needed beyond prompt clarity.
-- Quotes browser exposes "Chapter only" as a placement option.
-
-## 4. Chapter "Context" — message references
-
-**Schema (new migration)** — `chapter_message_context` table:
-
-```text
-chapter_message_context (
-  id uuid pk default gen_random_uuid(),
-  book_id uuid not null,
-  chapter_id uuid not null,
-  message_id uuid not null,
-  created_at timestamptz default now(),
-  unique (chapter_id, message_id)
-)
+In `SuggestedEdits.approve`, capture the toast id and wire `onClick` to dismiss it:
+```ts
+const id = toast.success("Applied", {
+  onClick: () => toast.dismiss(id),
+});
 ```
+(Sonner supports `onClick` in toast options; the toast already disappears via auto-close, this just makes a click dismiss it immediately.)
 
-With RLS mirroring `chapter_sections` (member-based via `is_book_member(book_id, ...)`).
+## 3. Export book as PDF + standalone HTML view
 
-**Auto-population**:
+**New route `src/routes/books.$bookId.read.tsx`**
+- Fetches book, chapters (ordered), sections (ordered), quotes + placements.
+- Renders a clean print-friendly layout (serif typography, page margins, no app chrome, `@media print` rules: hide buttons, `page-break-before: always` on each chapter).
+- Top toolbar (hidden on print) with:
+  - "Download PDF" → `window.print()` (browser save-as-PDF — no extra deps, works in Worker runtime).
+  - "Download HTML" → builds a self-contained HTML string (inline `<style>` with the same print CSS, no external assets) and triggers a `Blob` download as `<book-title>.html`.
+  - "Back to editor" link.
 
-- When the **Structure agent** creates a chapter via `add_chapter`, record the analyzed message ids that produced it. Easiest path: the edge function returns the new-message ids it analyzed and the applier links them when an `add_chapter` action is approved. Implementation: include `source_message_ids: string[]` in the `add_chapter` payload (the edge function attaches the current batch of `newMessages` ids), and the applier inserts them into `chapter_message_context` after creating the chapter.
-- Same for `add_section` so we know which conversation triggered it (optional).
+**Header button in `books.$bookId.tsx`**
+- Add an "Export / Read" button next to "Agents" linking to `/books/$bookId/read`.
 
-**UI in `Chapters.tsx**` (chapter editor):
+Why not server-side PDF: TanStack Start's Worker runtime can't run `puppeteer`/`sharp`/native libs (per server-runtime guidance). `window.print()` produces a high-quality PDF with zero dependencies; the standalone HTML download is a literal serialization of the rendered DOM.
 
-- New "Context" section listing referenced messages (author + timestamp + first ~120 chars of body/transcript).
-- Each item is a button that calls a new `onJumpToMessage(messageId)` callback passed down from `books.$bookId.tsx`.
-- `Conversation.tsx` accepts a `jumpToMessageId` prop; on change it scrolls the matching message into view and applies a brief highlight ring.
-- Manual add/remove of context messages (small "+ link message" picker) — optional, defer if scope tight.
+## 4. Structure agent on a chapter with no context messages
 
-## 5. Per-chapter Structure agent
+Current behavior in `run-agents/index.ts` (line ~244) already returns a friendly `message: "No context messages linked to this chapter yet."` (200 OK), and `Chapters.tsx` shows it via `toast.info`. So this is **not an error**, but the UX is dead-endy for chapters that pre-date the context feature.
 
-**Edge function** — extend `run-agents`:
+Fix: when `focusedChapter` is set and the chapter has zero context links, **fall back to all unanalyzed messages for that agent** (same set the global structure agent would see), and prepend a note to the user prompt telling the model to focus its section proposals on the focused chapter. Update toast wording in `runChapterStructureAgent` to clarify when fallback was used (return `{ usedFallback: true }` from the function and surface it).
 
-- Accept optional `chapterId` in the body. When present and `agent === "structure"`:
-  - Restrict `newMessages` to messages linked to that chapter via `chapter_message_context` (regardless of analysis state).
-  - Tighten the system prompt to say: "Only propose section-level actions for chapter `<id>` — add_section / rename_section / set_section_purpose / remove_section / merging via remove_section + new add_section. Do not touch other chapters."
-  - Skip the `message_agent_analysis` upsert in this mode (it's a focused re-run, not a global pass).
+This way old chapters are still usable, and once the user approves new `add_chapter` actions (which already record `chapter_message_context`), focus mode will work normally.
 
-**UI in `Chapters.tsx**` chapter editor:
+## Files touched
 
-- New button "Run Structure agent on this chapter" near the Sections header.
-- Calls `supabase.functions.invoke("run-agents", { body: { bookId, agent: "structure", chapterId } })`.
-- Resulting `suggested_edits` show up in the same SuggestedEdits panel in the conversation pane (no change needed there).
+- `src/components/book/SuggestedEdits.tsx` — return target from appliers, `onApplied` prop, click-to-dismiss toast.
+- `src/components/book/Conversation.tsx` — forward `onApplied` to `SuggestedEdits`.
+- `src/components/book/Chapters.tsx` — accept + react to `selectedSectionId`, scroll/highlight section.
+- `src/routes/books.$bookId.tsx` — controlled tabs, `selectedSectionId` state, wire `onApplied`, add Export button.
+- `src/routes/books.$bookId.read.tsx` — **new**, print/HTML export view.
+- `src/routeTree.gen.ts` — auto-regenerated.
+- `supabase/functions/run-agents/index.ts` — focused-mode fallback when no context links exist.
 
-## Files to touch / add
-
-- `supabase/migrations/<ts>_chapter_message_context.sql` (new)
-- `supabase/functions/run-agents/index.ts` (chapter scoping, quote→chapter coupling, source_message_ids on add_chapter)
-- `src/components/book/SuggestedEdits.tsx` (create_quote inserts placement; add_chapter inserts context links)
-- `src/components/book/QuotesBrowser.tsx` (new)
-- `src/components/book/Chapters.tsx` (Context list, jump callback, per-chapter Structure run button)
-- `src/components/book/Conversation.tsx` (accept `jumpToMessageId`, scroll + highlight)
-- `src/routes/books.$bookId.tsx` (Tabs: Chapters / Quotes; lift selected chapter + jumpToMessageId state across panes)
-
-## Notes
-
-- No new auth/roles needed; all new tables piggy-back on existing `is_book_member` policies.
-- Realtime subscriptions added for `chapter_message_context` (filtered by book) so the Context list stays live.
+No DB migrations required.

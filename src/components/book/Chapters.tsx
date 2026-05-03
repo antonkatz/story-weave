@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, GripVertical, Quote as QuoteIcon, MessageSquare, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +44,7 @@ export function Chapters({
   selectedChapterId,
   onSelectChapter,
   onJumpToMessage,
+  selectedSectionId,
 }: {
   bookId: string;
   chapters: Chapter[];
@@ -51,6 +52,7 @@ export function Chapters({
   selectedChapterId?: string | null;
   onSelectChapter?: (id: string | null) => void;
   onJumpToMessage?: (messageId: string) => void;
+  selectedSectionId?: string | null;
 }) {
   const [internalId, setInternalId] = useState<string | null>(chapters[0]?.id ?? null);
   const activeId = selectedChapterId ?? internalId;
@@ -127,6 +129,7 @@ export function Chapters({
             onSaved={onChange}
             onDelete={() => removeChapter(active.id)}
             onJumpToMessage={onJumpToMessage}
+            selectedSectionId={selectedSectionId ?? null}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm italic text-muted-foreground">
@@ -153,12 +156,14 @@ function ChapterEditor({
   onSaved,
   onDelete,
   onJumpToMessage,
+  selectedSectionId,
 }: {
   bookId: string;
   chapter: Chapter;
   onSaved: () => void;
   onDelete: () => void;
   onJumpToMessage?: (messageId: string) => void;
+  selectedSectionId?: string | null;
 }) {
   const [title, setTitle] = useState(chapter.title);
   const [synopsis, setSynopsis] = useState(chapter.synopsis ?? "");
@@ -169,6 +174,18 @@ function ChapterEditor({
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [context, setContext] = useState<ContextMessage[]>([]);
   const [runningAgent, setRunningAgent] = useState(false);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [highlightedSectionId, setHighlightedSectionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedSectionId) return;
+    const el = sectionRefs.current[selectedSectionId];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedSectionId(selectedSectionId);
+    const t = setTimeout(() => setHighlightedSectionId(null), 2000);
+    return () => clearTimeout(t);
+  }, [selectedSectionId, sections]);
 
   useEffect(() => {
     setTitle(chapter.title);
@@ -268,7 +285,12 @@ function ChapterEditor({
       if (error) throw error;
       const inserted = (data as { inserted?: number })?.inserted ?? 0;
       const msg = (data as { message?: string })?.message;
+      const usedFallback = (data as { usedFallback?: boolean })?.usedFallback;
       if (msg) toast.info(msg);
+      else if (usedFallback)
+        toast.success(
+          `Proposed ${inserted} section change${inserted === 1 ? "" : "s"} (no context messages linked yet — used full conversation).`,
+        );
       else toast.success(`Proposed ${inserted} section change${inserted === 1 ? "" : "s"} for this chapter.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not run agent");
@@ -406,6 +428,10 @@ function ChapterEditor({
                 key={s.id}
                 section={s}
                 quotes={sectionQuotes(s.id)}
+                wrapperRef={(el) => {
+                  sectionRefs.current[s.id] = el;
+                }}
+                highlighted={highlightedSectionId === s.id}
               />
             ))}
           </div>
@@ -421,7 +447,17 @@ function ChapterEditor({
   );
 }
 
-function SectionEditor({ section, quotes }: { section: Section; quotes: Quote[] }) {
+function SectionEditor({
+  section,
+  quotes,
+  wrapperRef,
+  highlighted,
+}: {
+  section: Section;
+  quotes: Quote[];
+  wrapperRef?: (el: HTMLDivElement | null) => void;
+  highlighted?: boolean;
+}) {
   const [title, setTitle] = useState(section.title);
   const [purpose, setPurpose] = useState(section.purpose);
   const [content, setContent] = useState(section.content);
@@ -453,7 +489,10 @@ function SectionEditor({ section, quotes }: { section: Section; quotes: Quote[] 
   };
 
   return (
-    <div className="rounded-lg border border-border bg-paper p-3">
+    <div
+      ref={wrapperRef}
+      className={`rounded-lg border bg-paper p-3 transition ${highlighted ? "border-primary ring-2 ring-primary" : "border-border"}`}
+    >
       <div className="flex items-center gap-2">
         <GripVertical className="h-4 w-4 text-muted-foreground" />
         <Input
