@@ -4,9 +4,11 @@ import { ArrowLeft, Users, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Conversation } from "@/components/book/Conversation";
 import { Chapters } from "@/components/book/Chapters";
+import { QuotesBrowser } from "@/components/book/QuotesBrowser";
 import { InviteDialog } from "@/components/book/InviteDialog";
 import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
 
