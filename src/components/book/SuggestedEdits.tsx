@@ -265,32 +265,41 @@ async function applyAgentAction(edit: Edit, bookId: string) {
       return;
     }
     case "combine_chapters": {
-      if (!edit.chapter_id || !p.other_chapter_id) throw new Error("Missing chapter ids");
-      const { data: chs } = await supabase
-        .from("chapters")
-        .select("id,content")
-        .in("id", [edit.chapter_id, p.other_chapter_id]);
-      const target = chs?.find((c) => c.id === edit.chapter_id);
-      const other = chs?.find((c) => c.id === p.other_chapter_id);
-      if (!target || !other) throw new Error("Chapters not found");
-      const merged = [target.content, other.content].filter(Boolean).join("\n\n");
-      const { error: upErr } = await supabase.from("chapters").update({ content: merged }).eq("id", target.id);
-      if (upErr) throw upErr;
-      await supabase.from("chapters").delete().eq("id", other.id);
+      const targetId = edit.chapter_id ?? p.chapter_id;
+      const otherId = p.other_chapter_id;
+      if (!targetId || !otherId) throw new Error("Missing chapter ids");
+      // Move sections + placements from other → target, then delete other.
+      const { error: secErr } = await supabase
+        .from("chapter_sections")
+        .update({ chapter_id: targetId })
+        .eq("chapter_id", otherId);
+      if (secErr) throw secErr;
+      const { error: plErr } = await supabase
+        .from("quote_placements")
+        .update({ chapter_id: targetId })
+        .eq("chapter_id", otherId);
+      if (plErr) throw plErr;
+      const { error: delErr } = await supabase.from("chapters").delete().eq("id", otherId);
+      if (delErr) throw delErr;
       return;
     }
     case "add_section": {
-      if (!edit.chapter_id) throw new Error("Missing chapter_id");
+      const chapterId = edit.chapter_id ?? p.chapter_id;
+      if (!chapterId) {
+        throw new Error(
+          "This section was proposed for a not-yet-created chapter. Approve the related add_chapter first, then re-run the agent.",
+        );
+      }
       const { data: existing } = await supabase
         .from("chapter_sections")
         .select("position")
-        .eq("chapter_id", edit.chapter_id)
+        .eq("chapter_id", chapterId)
         .order("position", { ascending: false })
         .limit(1);
       const nextPos = (existing?.[0]?.position ?? -1) + 1;
       const { error } = await supabase.from("chapter_sections").insert({
         book_id: bookId,
-        chapter_id: edit.chapter_id,
+        chapter_id: chapterId,
         title: p.title || "New section",
         purpose: p.purpose || "",
         position: nextPos,
