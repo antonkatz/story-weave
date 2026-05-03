@@ -196,11 +196,12 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { bookId, agent } = (await req.json()) as { bookId: string; agent: AgentKind };
+    const { bookId, agent, chapterId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string };
     if (!bookId) throw new Error("bookId required");
     if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
       throw new Error("agent must be one of: structure, quotation, writing");
     }
+    const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
 
     // Load full book context
     const [
@@ -213,6 +214,7 @@ serve(async (req) => {
       { data: bookPrompts },
       { data: allMsgs },
       { data: analyzed },
+      { data: contextLinks },
     ] = await Promise.all([
       supabase.from("books").select("title,description").eq("id", bookId).maybeSingle(),
       supabase.from("chapters").select("id,title,position,synopsis,theme").eq("book_id", bookId).order("position"),
@@ -223,14 +225,25 @@ serve(async (req) => {
       supabase.from("book_agent_prompts").select("agent,prompt").eq("book_id", bookId),
       supabase.from("messages").select("id,author_id,kind,body,transcript,created_at").eq("book_id", bookId).order("created_at"),
       supabase.from("message_agent_analysis").select("message_id").eq("book_id", bookId).eq("agent", agent),
+      supabase.from("chapter_message_context").select("chapter_id,message_id").eq("book_id", bookId),
     ]);
 
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
-    const newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
+    let newMessages: any[];
+    if (focusedChapter) {
+      const focusedMsgIds = new Set(
+        (contextLinks ?? [])
+          .filter((c: any) => c.chapter_id === focusedChapter)
+          .map((c: any) => c.message_id),
+      );
+      newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
+    } else {
+      newMessages = (allMsgs ?? []).filter((m: any) => !analyzedSet.has(m.id));
+    }
 
     if (newMessages.length === 0) {
       return new Response(
-        JSON.stringify({ inserted: 0, agent, message: "No new messages for this agent" }),
+        JSON.stringify({ inserted: 0, agent, message: focusedChapter ? "No context messages linked to this chapter yet." : "No new messages for this agent" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
