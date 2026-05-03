@@ -362,12 +362,38 @@ function ChapterEditor({
         </div>
       )}
 
+      {context.length > 0 && (
+        <div>
+          <h4 className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Context — messages that shaped this chapter</h4>
+          <div className="space-y-1">
+            {context.map((c) => {
+              const txt = c.kind === "voice" ? (c.transcript ?? "[voice]") : c.body;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => onJumpToMessage?.(c.message_id)}
+                  className="flex w-full items-start gap-2 rounded border border-border/60 bg-background/40 px-2 py-1.5 text-left text-xs hover:bg-secondary/50"
+                >
+                  <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="line-clamp-2 leading-snug">{txt.slice(0, 200)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h4 className="text-xs uppercase tracking-wide text-muted-foreground">Sections</h4>
-          <Button variant="ghost" size="sm" onClick={addSection}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add section
-          </Button>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" onClick={runChapterStructureAgent} disabled={runningAgent}>
+              <Sparkles className="mr-1 h-3.5 w-3.5" /> {runningAgent ? "Running…" : "Run Structure agent"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={addSection}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Add section
+            </Button>
+          </div>
         </div>
         {sections.length === 0 ? (
           <p className="text-xs italic text-muted-foreground">
