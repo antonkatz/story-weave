@@ -46,7 +46,15 @@ const ACTION_LABELS: Record<string, string> = {
   replace_section: "Replace section",
 };
 
-export function SuggestedEdits({ bookId }: { bookId: string }) {
+export type EditTarget = { chapterId: string; sectionId: string | null };
+
+export function SuggestedEdits({
+  bookId,
+  onApplied,
+}: {
+  bookId: string;
+  onApplied?: (target: EditTarget) => void;
+}) {
   const { user } = useAuth();
   const [edits, setEdits] = useState<Edit[]>([]);
   const [collapsed, setCollapsed] = useState(false);
