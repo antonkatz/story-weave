@@ -15,6 +15,7 @@ import { Route as BooksIndexRouteImport } from './routes/books.index'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as BooksBookIdRouteImport } from './routes/books.$bookId'
+import { Route as ApiContactFeedbackRouteImport } from './routes/api/contact-feedback'
 import { Route as BooksBookIdReadRouteImport } from './routes/books.$bookId_.read'
 
 const AuthRoute = AuthRouteImport.update({
@@ -47,6 +48,11 @@ const BooksBookIdRoute = BooksBookIdRouteImport.update({
   path: '/books/$bookId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiContactFeedbackRoute = ApiContactFeedbackRouteImport.update({
+  id: '/api/contact-feedback',
+  path: '/api/contact-feedback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BooksBookIdReadRoute = BooksBookIdReadRouteImport.update({
   id: '/books/$bookId_/read',
   path: '/books/$bookId/read',
@@ -56,6 +62,7 @@ const BooksBookIdReadRoute = BooksBookIdReadRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/api/contact-feedback': typeof ApiContactFeedbackRoute
   '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/api/contact-feedback': typeof ApiContactFeedbackRoute
   '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/api/contact-feedback': typeof ApiContactFeedbackRoute
   '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/api/contact-feedback'
     | '/books/$bookId'
     | '/join/$token'
     | '/settings/agents'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/api/contact-feedback'
     | '/books/$bookId'
     | '/join/$token'
     | '/settings/agents'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/api/contact-feedback'
     | '/books/$bookId'
     | '/join/$token'
     | '/settings/agents'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  ApiContactFeedbackRoute: typeof ApiContactFeedbackRoute
   BooksBookIdRoute: typeof BooksBookIdRoute
   JoinTokenRoute: typeof JoinTokenRoute
   SettingsAgentsRoute: typeof SettingsAgentsRoute
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BooksBookIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/contact-feedback': {
+      id: '/api/contact-feedback'
+      path: '/api/contact-feedback'
+      fullPath: '/api/contact-feedback'
+      preLoaderRoute: typeof ApiContactFeedbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/books/$bookId_/read': {
       id: '/books/$bookId_/read'
       path: '/books/$bookId/read'
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  ApiContactFeedbackRoute: ApiContactFeedbackRoute,
   BooksBookIdRoute: BooksBookIdRoute,
   JoinTokenRoute: JoinTokenRoute,
   SettingsAgentsRoute: SettingsAgentsRoute,
