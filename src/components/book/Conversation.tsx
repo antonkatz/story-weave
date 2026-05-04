@@ -216,44 +216,40 @@ export function Conversation({
     }
   };
 
-  // Load per-agent analyzed message ids
+  // Load per-agent run counts
   useEffect(() => {
     let active = true;
     (async () => {
       const { data } = await supabase
         .from("message_agent_analysis")
-        .select("message_id,agent")
+        .select("message_id,agent,run_count")
         .eq("book_id", bookId);
       if (!active || !data) return;
-      const next: Record<AgentKind, Set<string>> = {
-        structure: new Set(),
-        quotation: new Set(),
-        writing: new Set(),
-      };
-      for (const r of data as { message_id: string; agent: AgentKind }[]) {
-        next[r.agent]?.add(r.message_id);
+      const next: Record<string, number> = {};
+      for (const r of data as { message_id: string; agent: AgentKind; run_count: number }[]) {
+        next[`${r.message_id}:${r.agent}`] = r.run_count ?? 1;
       }
-      setAnalyzed(next);
+      setRunCounts(next);
     })();
     return () => {
       active = false;
     };
   }, [bookId]);
 
-  // Realtime: track new analysis rows
+  // Realtime: track analysis rows
   useEffect(() => {
     const ch = supabase
       .channel(`analysis:${bookId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
+        { event: "*", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
         (payload) => {
-          const row = payload.new as { message_id: string; agent: AgentKind };
-          setAnalyzed((prev) => {
-            const next = { ...prev, [row.agent]: new Set(prev[row.agent]) };
-            next[row.agent].add(row.message_id);
-            return next;
-          });
+          const row = (payload.new ?? payload.old) as { message_id: string; agent: AgentKind; run_count?: number };
+          if (!row?.message_id) return;
+          setRunCounts((prev) => ({
+            ...prev,
+            [`${row.message_id}:${row.agent}`]: payload.eventType === "DELETE" ? 0 : row.run_count ?? 1,
+          }));
         },
       )
       .subscribe();
@@ -262,25 +258,24 @@ export function Conversation({
     };
   }, [bookId]);
 
-  const runAgent = async (agent: AgentKind) => {
-    setRunning(agent);
+  const runAgentOnMessage = async (agent: AgentKind, messageId: string) => {
+    const key = `${messageId}:${agent}`;
+    setRunning(key);
     try {
-      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId, agent } });
+      const { data, error } = await supabase.functions.invoke("run-agents", {
+        body: { bookId, agent, messageId },
+      });
       if (error) throw error;
       const inserted = (data as { inserted?: number })?.inserted ?? 0;
-      const an = (data as { analyzed?: number })?.analyzed ?? 0;
       const msg = (data as { message?: string })?.message;
       if (msg) toast.info(msg);
-      else toast.success(`${capitalize(agent)} agent proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${an} message${an === 1 ? "" : "s"}.`);
+      else toast.success(`${capitalize(agent)} proposed ${inserted} edit${inserted === 1 ? "" : "s"}.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not run agent");
     } finally {
       setRunning(null);
     }
   };
-
-  const unanalyzedFor = (agent: AgentKind) =>
-    messages.filter((m) => !analyzed[agent].has(m.id)).length;
 
   const agentList: { id: AgentKind; label: string }[] = [
     { id: "structure", label: "Structure" },
