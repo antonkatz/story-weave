@@ -298,27 +298,13 @@ export function Conversation({
               isMine={m.author_id === user?.id}
               authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
               highlighted={m.id === highlightId}
+              agents={agentList}
+              runCounts={runCounts}
+              running={running}
+              onRunAgent={(agent) => runAgentOnMessage(agent, m.id)}
             />
           ))
         )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border bg-plum/5 px-3 py-2">
-        <span className="text-xs text-muted-foreground">Run an agent:</span>
-        {agentList.map((a) => {
-          const count = unanalyzedFor(a.id);
-          return (
-            <Button
-              key={a.id}
-              size="sm"
-              variant="secondary"
-              disabled={running !== null || count === 0}
-              onClick={() => runAgent(a.id)}
-            >
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              {running === a.id ? `Running ${a.label}…` : `${a.label}${count > 0 ? ` (${count})` : ""}`}
-            </Button>
-          );
-        })}
       </div>
       <div className="border-t border-border bg-paper/60 p-3">
         <div className="flex items-center gap-2">
