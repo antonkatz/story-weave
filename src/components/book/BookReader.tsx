@@ -28,6 +28,7 @@ export const PRINT_CSS = `
 .book h3 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
 .book p { margin: 0.75rem 0; }
 .book blockquote { border-left: 3px solid #888; padding-left: 1rem; margin: 1rem 0; font-style: italic; }
+.book blockquote .cite { display: block; margin-top: 0.25rem; font-style: normal; font-size: 0.875rem; color: #666; }
 .book .desc, .book .synopsis { font-style: italic; color: #555; }
 `;
 
