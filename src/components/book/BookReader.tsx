@@ -154,6 +154,9 @@ export function BookReader({
                         className="my-3 border-l-4 border-plum/50 pl-4 font-serif italic"
                       >
                         {q.text}
+                        {q.author_name && (
+                          <footer className="mt-1 text-sm not-italic text-muted-foreground">— {q.author_name}</footer>
+                        )}
                       </blockquote>
                     ))}
                     {s.content &&
