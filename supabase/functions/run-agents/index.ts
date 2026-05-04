@@ -444,12 +444,19 @@ serve(async (req) => {
       if (insErr) throw insErr;
     }
 
-    // Mark messages analyzed for this agent (skip in focused chapter mode)
-    if (!focusedChapter && !focusedSection) {
+    // Mark messages analyzed for this agent (skip in focused chapter/section mode)
+    if (focusedMessage) {
+      const next = runCountFor(focusedMessage) + 1;
+      await supabase.from("message_agent_analysis").upsert(
+        [{ message_id: focusedMessage, agent, book_id: bookId, run_count: next, analyzed_at: new Date().toISOString() }],
+        { onConflict: "message_id,agent" },
+      );
+    } else if (!focusedChapter && !focusedSection) {
       const analysisRows = newMessages.map((m: any) => ({
         message_id: m.id,
         agent,
         book_id: bookId,
+        run_count: 1,
       }));
       if (analysisRows.length > 0) {
         await supabase.from("message_agent_analysis").upsert(analysisRows, {
