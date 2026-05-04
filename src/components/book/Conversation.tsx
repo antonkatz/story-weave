@@ -365,11 +365,19 @@ function MessageBubble({
   isMine,
   authorName,
   highlighted,
+  agents,
+  runCounts,
+  running,
+  onRunAgent,
 }: {
   message: Message;
   isMine: boolean;
   authorName: string;
   highlighted?: boolean;
+  agents: { id: AgentKind; label: string }[];
+  runCounts: Record<string, number>;
+  running: string | null;
+  onRunAgent: (agent: AgentKind) => void;
 }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -388,7 +396,7 @@ function MessageBubble({
   }, [message]);
 
   return (
-    <div id={`msg-${message.id}`} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+    <div id={`msg-${message.id}`} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm transition-all ${
           isMine
@@ -413,6 +421,28 @@ function MessageBubble({
             </p>
           </div>
         )}
+      </div>
+      <div className={`mt-1 flex flex-wrap gap-1 ${isMine ? "justify-end" : "justify-start"} max-w-[80%]`}>
+        {agents.map((a) => {
+          const key = `${message.id}:${a.id}`;
+          const count = runCounts[key] ?? 0;
+          const maxed = count >= 3;
+          const isRunning = running === key;
+          return (
+            <Button
+              key={a.id}
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              disabled={maxed || running !== null}
+              onClick={() => onRunAgent(a.id)}
+              title={maxed ? `${a.label} agent already ran 3 times` : `Run ${a.label} agent on this message`}
+            >
+              <Sparkles className="mr-1 h-3 w-3" />
+              {isRunning ? `${a.label}…` : `${a.label}${count > 0 ? ` (${count}/3)` : ""}`}
+            </Button>
+          );
+        })}
       </div>
     </div>
   );
