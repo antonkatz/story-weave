@@ -52,7 +52,7 @@ export const Route = createFileRoute("/api/contact-feedback")({
             },
             body: JSON.stringify({
               from: "Weave Feedback <notify@hfxaiguy.com>",
-              to: ["anton@hfxaiguy.com"],
+              to: ["anton@hfxaiguy.com", "antonkats@gmail.com"],
               subject: `Weave feedback${name ? ` from ${name}` : ""}`,
               html,
               reply_to: email || undefined,
