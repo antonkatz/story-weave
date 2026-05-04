@@ -17,6 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
+import { HfxBanner } from "@/components/HfxBanner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { useAuth } from "@/lib/auth";
 
@@ -68,6 +69,7 @@ function BooksPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
+      <HfxBanner />
       <main className="mx-auto max-w-6xl px-6 py-12">
         <div className="flex items-end justify-between">
           <div>
