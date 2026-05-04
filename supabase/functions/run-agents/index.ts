@@ -354,6 +354,12 @@ serve(async (req) => {
           if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
             a.source_message_id = null;
           }
+          // Auto-fill speaker_id from source message author if missing/invalid
+          const srcMsg = a.source_message_id ? (allMsgs ?? []).find((m: any) => m.id === a.source_message_id) : null;
+          const validAuthorIds = new Set(authorIds);
+          if (!a.speaker_id || !validAuthorIds.has(a.speaker_id)) {
+            a.speaker_id = srcMsg?.author_id ?? null;
+          }
           // Default to first chapter if model didn't pick one and only one exists
           if (!a.chapter_id && (chapters ?? []).length === 1) {
             a.chapter_id = (chapters as any[])[0].id;
