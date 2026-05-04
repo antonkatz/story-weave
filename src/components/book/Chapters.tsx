@@ -464,11 +464,13 @@ function ChapterEditor({
 }
 
 function SectionEditor({
+  bookId,
   section,
   quotes,
   wrapperRef,
   highlighted,
 }: {
+  bookId: string;
   section: Section;
   quotes: Quote[];
   wrapperRef?: (el: HTMLDivElement | null) => void;
@@ -478,6 +480,7 @@ function SectionEditor({
   const [purpose, setPurpose] = useState(section.purpose);
   const [content, setContent] = useState(section.content);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     setTitle(section.title);
