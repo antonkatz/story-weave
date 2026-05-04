@@ -277,9 +277,10 @@ export function Conversation({
     }
   };
 
+  // TEMP FIX: splitter agent hidden from per-message agent buttons until its UX is finalized.
+  // Re-add { id: "splitter", label: "Splitter" } when ready.
   const agentList: { id: AgentKind; label: string }[] = [
     { id: "structure", label: "Structure" },
-    { id: "splitter", label: "Splitter" },
     { id: "quotation", label: "Quotation" },
     { id: "writing", label: "Writing" },
   ];
