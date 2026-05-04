@@ -41,7 +41,7 @@ function AuthPage() {
       <div className="w-full max-w-md rounded-2xl border border-border bg-paper p-8 shadow-page">
         <Link to="/" className="mb-6 flex items-center justify-center gap-2 text-foreground">
           <BookOpen className="h-5 w-5 text-primary" />
-          <span className="font-serif text-2xl font-semibold">Quill</span>
+          <span className="font-serif text-2xl font-semibold">Weave</span>
         </Link>
         <h1 className="text-center font-serif text-2xl font-semibold">Welcome</h1>
         <p className="mt-1 text-center text-sm text-muted-foreground">

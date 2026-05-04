@@ -34,7 +34,7 @@ function Index() {
             <span className="text-primary">one conversation at a time.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Quill turns the free-flowing voice and text conversations between you
+            Weave turns the free-flowing voice and text conversations between you
             and your friends into chapters. AI drafts the edits — you and your
             co-authors decide what makes the page.
           </p>

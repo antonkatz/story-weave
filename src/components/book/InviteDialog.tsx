@@ -82,7 +82,7 @@ export function InviteDialog({
     const link = `${window.location.origin}/join/${token}`;
     const mailto = `mailto:${parsed.data}?subject=${encodeURIComponent(
       "You're invited to co-write a book"
-    )}&body=${encodeURIComponent(`Join me writing this book on Quill: ${link}`)}`;
+    )}&body=${encodeURIComponent(`Join me writing this book on Weave: ${link}`)}`;
     window.location.href = mailto;
     toast.success("Invite link copied to your email draft");
     setOpen(false);

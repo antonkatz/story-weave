@@ -12,7 +12,7 @@ export function AppHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2 text-foreground">
           <BookOpen className="h-5 w-5 text-primary" />
-          <span className="font-serif text-xl font-semibold tracking-tight">Quill</span>
+          <span className="font-serif text-xl font-semibold tracking-tight">Weave</span>
         </Link>
         <div className="flex items-center gap-3">
           {user ? (
