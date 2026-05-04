@@ -13,7 +13,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import hfxAvatar from "@/assets/anton-avatar.png";
-import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 
 const STARTERS = [
@@ -61,12 +60,12 @@ function ContributorChip({ name }: { name: string }) {
 }
 
 export function HfxBanner() {
-  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [contributorName, setContributorName] = useState("");
   const [sending, setSending] = useState(false);
   const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const loadContributors = async () => {
     const { data } = await supabase
@@ -78,6 +77,9 @@ export function HfxBanner() {
 
   useEffect(() => {
     loadContributors();
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user?.email ?? null);
+    });
   }, []);
 
   const send = async () => {
@@ -99,8 +101,8 @@ export function HfxBanner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: user?.email,
-          name: trimmedName || user?.email?.split("@")[0],
+          email: userEmail ?? undefined,
+          name: trimmedName || userEmail?.split("@")[0],
           message,
         }),
       });
