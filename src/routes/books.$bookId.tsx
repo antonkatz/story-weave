@@ -55,6 +55,7 @@ type Member = {
 function BookPage() {
   const { bookId } = Route.useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [book, setBook] = useState<Book | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -63,6 +64,8 @@ function BookPage() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("chapters");
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const handleApplied = useCallback((target: { chapterId: string; sectionId: string | null }) => {
     setActiveTab("chapters");
