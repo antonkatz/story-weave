@@ -413,7 +413,7 @@ serve(async (req) => {
     }
 
     // Mark messages analyzed for this agent (skip in focused chapter mode)
-    if (!focusedChapter) {
+    if (!focusedChapter && !focusedSection) {
       const analysisRows = newMessages.map((m: any) => ({
         message_id: m.id,
         agent,
