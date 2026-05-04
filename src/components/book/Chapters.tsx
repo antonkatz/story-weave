@@ -316,14 +316,29 @@ function ChapterEditor({
 
   const addSection = async () => {
     const maxPos = sections.reduce((m, s) => Math.max(m, s.position), -1) + 1;
-    const { error } = await supabase.from("chapter_sections").insert({
-      book_id: bookId,
-      chapter_id: chapter.id,
-      title: `Section ${sections.length + 1}`,
-      purpose: "",
-      position: maxPos,
-    });
-    if (error) toast.error("Could not add section");
+    const { data, error } = await supabase
+      .from("chapter_sections")
+      .insert({
+        book_id: bookId,
+        chapter_id: chapter.id,
+        title: `Section ${sections.length + 1}`,
+        purpose: "",
+        position: maxPos,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      toast.error("Could not add section");
+      return;
+    }
+    await reloadSections();
+    if (data?.id) {
+      setHighlightedSectionId(data.id);
+      setTimeout(() => {
+        sectionRefs.current[data.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+      setTimeout(() => setHighlightedSectionId(null), 2200);
+    }
   };
 
   const sectionQuotes = (sectionId: string) =>
