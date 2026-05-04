@@ -55,6 +55,8 @@ export function Chapters({
   selectedSectionId?: string | null;
 }) {
   const [internalId, setInternalId] = useState<string | null>(chapters[0]?.id ?? null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const activeId = selectedChapterId ?? internalId;
   const setActiveId = (id: string | null) => {
     setInternalId(id);
