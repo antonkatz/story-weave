@@ -20,7 +20,7 @@ type Message = {
   analyzed_at: string | null;
 };
 
-type AgentKind = "structure" | "quotation" | "writing";
+type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 export function Conversation({
   bookId,
@@ -279,6 +279,7 @@ export function Conversation({
 
   const agentList: { id: AgentKind; label: string }[] = [
     { id: "structure", label: "Structure" },
+    { id: "splitter", label: "Splitter" },
     { id: "quotation", label: "Quotation" },
     { id: "writing", label: "Writing" },
   ];

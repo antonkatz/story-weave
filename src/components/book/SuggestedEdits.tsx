@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
-type AgentKind = "structure" | "quotation" | "writing";
+type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 type Edit = {
   id: string;
@@ -27,12 +27,12 @@ const AGENT_LABELS: Record<AgentKind, string> = {
   structure: "Structure",
   quotation: "Quotation",
   writing: "Writing",
+  splitter: "Splitter",
 };
 
 const ACTION_LABELS: Record<string, string> = {
   add_chapter: "Add chapter",
   rename_chapter: "Rename chapter",
-  set_chapter_synopsis: "Set chapter synopsis",
   set_chapter_theme: "Set chapter theme",
   combine_chapters: "Combine chapters",
   add_section: "Add section",
@@ -44,6 +44,12 @@ const ACTION_LABELS: Record<string, string> = {
   write_section: "Write section",
   append_to_section: "Append to section",
   replace_section: "Replace section",
+  split_message: "Split message",
+};
+
+const ACTION_ORDER: Record<string, number> = {
+  add_chapter: 0,
+  add_section: 1,
 };
 
 export type EditTarget = { chapterId: string; sectionId: string | null };
@@ -132,11 +138,20 @@ export function SuggestedEdits({
   const pending = edits.filter((e) => e.status === "pending");
 
   // Group pending by agent
-  const byAgent: Record<string, Edit[]> = { structure: [], quotation: [], writing: [], legacy: [] };
+  const byAgent: Record<string, Edit[]> = { structure: [], quotation: [], writing: [], splitter: [], legacy: [] };
   for (const e of pending) {
     const key = e.agent ?? "legacy";
     (byAgent[key] ??= []).push(e);
   }
+
+  // Sort: chapters first, then sections, then everything else
+  const sortActions = (list: Edit[]) =>
+    [...list].sort((a, b) => {
+      const ao = ACTION_ORDER[a.action_type ?? ""] ?? 99;
+      const bo = ACTION_ORDER[b.action_type ?? ""] ?? 99;
+      if (ao !== bo) return ao - bo;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   if (pending.length === 0) {
     return (
@@ -159,17 +174,17 @@ export function SuggestedEdits({
       </button>
       {!collapsed && (
         <div className="max-h-[40vh] space-y-3 overflow-y-auto px-3 pb-3">
-          {(["structure", "quotation", "writing", "legacy"] as const).map((agent) => {
-            const list = byAgent[agent] ?? [];
+          {(["structure", "splitter", "quotation", "writing", "legacy"] as const).map((agent) => {
+            const list = sortActions(byAgent[agent] ?? []);
             if (list.length === 0) return null;
             return (
               <div key={agent}>
                 <h5 className="mb-1 px-1 text-xs uppercase tracking-wide text-muted-foreground">
-                  {agent === "legacy" ? "General" : AGENT_LABELS[agent]} ({list.length})
+                  {agent === "legacy" ? "General" : AGENT_LABELS[agent as AgentKind]} ({list.length})
                 </h5>
                 <div className="space-y-2">
                   {list.map((e) => (
-                    <EditCard key={e.id} edit={e} onApprove={() => approve(e)} onReject={() => reject(e)} />
+                    <EditCard key={e.id} edit={e} pending={pending} onApprove={() => approve(e)} onReject={() => reject(e)} />
                   ))}
                 </div>
               </div>
@@ -183,10 +198,12 @@ export function SuggestedEdits({
 
 function EditCard({
   edit,
+  pending,
   onApprove,
   onReject,
 }: {
   edit: Edit;
+  pending: Edit[];
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -196,12 +213,27 @@ function EditCard({
     (edit.payload && typeof edit.payload === "object"
       ? extractPreview(edit.payload as Record<string, unknown>)
       : "");
+
+  // For add_section: show which chapter it will land in (existing or pending)
+  let chapterHint: string | null = null;
+  if (edit.action_type === "add_section") {
+    const p = (edit.payload ?? {}) as Record<string, any>;
+    if (!edit.chapter_id && p.chapter_title_hint) {
+      chapterHint = `Will create chapter: "${p.chapter_title_hint}"`;
+    }
+  }
+
   return (
     <div className="rounded-lg border border-border bg-paper p-2.5 text-sm shadow-sm">
       <div className="flex items-center gap-2">
         <span className="rounded bg-plum/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-plum">
           {actionLabel}
         </span>
+        {chapterHint && (
+          <span className="rounded bg-sage/15 px-1.5 py-0.5 text-[10px] font-medium text-sage-foreground">
+            {chapterHint}
+          </span>
+        )}
       </div>
       <p className="mt-1.5 text-sm">{edit.summary}</p>
       {preview && (
@@ -313,11 +345,35 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
       return { chapterId: targetId, sectionId: null };
     }
     case "add_section": {
-      const chapterId = edit.chapter_id ?? p.chapter_id;
+      let chapterId = edit.chapter_id ?? p.chapter_id;
       if (!chapterId) {
-        throw new Error(
-          "This section was proposed for a not-yet-created chapter. Approve the related add_chapter first, then re-run the agent.",
-        );
+        // Auto-create chapter from hint payload
+        const titleHint = p.chapter_title_hint;
+        if (!titleHint) {
+          throw new Error(
+            "This section was proposed for a not-yet-created chapter. Re-run the structure agent so it includes a chapter_title_hint.",
+          );
+        }
+        const { data: chExisting } = await supabase
+          .from("chapters")
+          .select("position")
+          .eq("book_id", bookId)
+          .order("position", { ascending: false })
+          .limit(1);
+        const chPos = (chExisting?.[0]?.position ?? -1) + 1;
+        const { data: newChapter, error: chErr } = await supabase
+          .from("chapters")
+          .insert({
+            book_id: bookId,
+            title: titleHint,
+            position: chPos,
+            synopsis: p.chapter_synopsis_hint || "",
+            theme: p.chapter_theme_hint || "",
+          })
+          .select("id")
+          .single();
+        if (chErr) throw chErr;
+        chapterId = newChapter.id;
       }
       const { data: existing } = await supabase
         .from("chapter_sections")
@@ -414,6 +470,37 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
       const { error } = await supabase.from("chapter_sections").update({ content: next }).eq("id", p.section_id);
       if (error) throw error;
       return chapterId ? { chapterId, sectionId: p.section_id } : null;
+    }
+    case "split_message": {
+      const srcId = p.source_message_id;
+      const parts = Array.isArray(p.parts) ? p.parts : [];
+      if (!srcId) throw new Error("Missing source_message_id");
+      if (parts.length < 2) throw new Error("Need at least 2 parts to split");
+      const { data: srcMsg, error: srcErr } = await supabase
+        .from("messages")
+        .select("id,book_id,author_id,kind,created_at")
+        .eq("id", srcId)
+        .single();
+      if (srcErr || !srcMsg) throw new Error("Source message not found");
+      const baseTime = new Date(srcMsg.created_at).getTime();
+      const newRows = parts.map((part: any, idx: number) => {
+        const text = (part?.text ?? "").toString().trim();
+        const label = (part?.speaker_label ?? "").toString().trim();
+        const body = label ? `${label}: ${text}` : text;
+        return {
+          book_id: bookId,
+          author_id: srcMsg.author_id,
+          kind: "text" as const,
+          body,
+          created_at: new Date(baseTime + idx).toISOString(),
+        };
+      }).filter((r) => r.body);
+      if (newRows.length === 0) throw new Error("All parts were empty");
+      const { error: insErr } = await supabase.from("messages").insert(newRows);
+      if (insErr) throw insErr;
+      const { error: delErr } = await supabase.from("messages").delete().eq("id", srcId);
+      if (delErr) throw delErr;
+      return null;
     }
     default:
       throw new Error(`Unknown action_type: ${t}`);

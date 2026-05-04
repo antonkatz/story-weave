@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-export type AgentKind = "structure" | "quotation" | "writing";
+export type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 const AGENTS: { id: AgentKind; label: string; description: string }[] = [
   { id: "structure", label: "Structure", description: "Designs chapters, synopses, themes, and sections." },
+  { id: "splitter", label: "Splitter", description: "Splits long or multi-speaker messages into smaller messages." },
   { id: "quotation", label: "Quotation", description: "Pulls verbatim quotes from messages and assigns them." },
   { id: "writing", label: "Writing", description: "Combines quotes into cohesive prose for each section." },
 ];
@@ -22,9 +23,9 @@ type Prompts = Record<AgentKind, string>;
  *    and shows the inherited global prompt as fallback.
  */
 export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
-  const [globals, setGlobals] = useState<Prompts>({ structure: "", quotation: "", writing: "" });
+  const [globals, setGlobals] = useState<Prompts>({ structure: "", quotation: "", writing: "", splitter: "" });
   const [overrides, setOverrides] = useState<Partial<Prompts>>({});
-  const [drafts, setDrafts] = useState<Prompts>({ structure: "", quotation: "", writing: "" });
+  const [drafts, setDrafts] = useState<Prompts>({ structure: "", quotation: "", writing: "", splitter: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<AgentKind | null>(null);
 
@@ -38,7 +39,7 @@ export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
           : Promise.resolve({ data: [] as { agent: AgentKind; prompt: string }[] }),
       ]);
       if (!active) return;
-      const gMap: Prompts = { structure: "", quotation: "", writing: "" };
+      const gMap: Prompts = { structure: "", quotation: "", writing: "", splitter: "" };
       for (const row of g ?? []) gMap[row.agent as AgentKind] = row.prompt;
       const oMap: Partial<Prompts> = {};
       for (const row of (ovRes.data ?? []) as { agent: AgentKind; prompt: string }[]) {
@@ -51,6 +52,7 @@ export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
         structure: oMap.structure ?? gMap.structure,
         quotation: oMap.quotation ?? gMap.quotation,
         writing: oMap.writing ?? gMap.writing,
+        splitter: oMap.splitter ?? gMap.splitter,
       });
       setLoading(false);
     })();
@@ -109,7 +111,7 @@ export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
 
   return (
     <Tabs defaultValue="structure" className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList className="grid w-full grid-cols-4">
         {AGENTS.map((a) => (
           <TabsTrigger key={a.id} value={a.id}>
             {a.label}
