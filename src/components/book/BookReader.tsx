@@ -72,7 +72,8 @@ export function renderBookHtml(
         .map((p) => quoteFor(p.quote_id))
         .filter(Boolean);
       for (const q of sectionQuotes) {
-        html += `<blockquote>${escapeHtml(q!.text)}</blockquote>`;
+        const cite = q!.author_name ? `<footer class="cite">— ${escapeHtml(q!.author_name)}</footer>` : "";
+        html += `<blockquote>${escapeHtml(q!.text)}${cite}</blockquote>`;
       }
       if (s.content) {
         html += s.content
