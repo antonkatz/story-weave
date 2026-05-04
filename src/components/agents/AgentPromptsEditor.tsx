@@ -52,6 +52,7 @@ export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
         structure: oMap.structure ?? gMap.structure,
         quotation: oMap.quotation ?? gMap.quotation,
         writing: oMap.writing ?? gMap.writing,
+        splitter: oMap.splitter ?? gMap.splitter,
       });
       setLoading(false);
     })();
