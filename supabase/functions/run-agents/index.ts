@@ -232,17 +232,19 @@ serve(async (req) => {
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
     let newMessages: any[];
     let usedFallback = false;
-    if (focusedChapter) {
+    // Resolve focused section -> its chapter (for using context links)
+    const sectionRow = focusedSection ? (sections ?? []).find((s: any) => s.id === focusedSection) : null;
+    const sectionChapterId = sectionRow?.chapter_id ?? null;
+    const effectiveFocusChapter = focusedChapter ?? sectionChapterId;
+    if (effectiveFocusChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
-          .filter((c: any) => c.chapter_id === focusedChapter)
+          .filter((c: any) => c.chapter_id === effectiveFocusChapter)
           .map((c: any) => c.message_id),
       );
       if (focusedMsgIds.size > 0) {
         newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
       } else {
-        // Fallback: chapter has no linked context messages — use all messages so the
-        // agent has something to work with. Tell the model to focus on this chapter.
         usedFallback = true;
         newMessages = allMsgs ?? [];
       }
