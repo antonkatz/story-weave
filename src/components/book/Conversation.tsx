@@ -40,12 +40,8 @@ export function Conversation({
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [running, setRunning] = useState<AgentKind | null>(null);
-  const [analyzed, setAnalyzed] = useState<Record<AgentKind, Set<string>>>({
-    structure: new Set(),
-    quotation: new Set(),
-    writing: new Set(),
-  });
+  const [running, setRunning] = useState<string | null>(null); // `${messageId}:${agent}`
+  const [runCounts, setRunCounts] = useState<Record<string, number>>({}); // key `${messageId}:${agent}` -> count
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
@@ -220,44 +216,40 @@ export function Conversation({
     }
   };
 
-  // Load per-agent analyzed message ids
+  // Load per-agent run counts
   useEffect(() => {
     let active = true;
     (async () => {
       const { data } = await supabase
         .from("message_agent_analysis")
-        .select("message_id,agent")
+        .select("message_id,agent,run_count")
         .eq("book_id", bookId);
       if (!active || !data) return;
-      const next: Record<AgentKind, Set<string>> = {
-        structure: new Set(),
-        quotation: new Set(),
-        writing: new Set(),
-      };
-      for (const r of data as { message_id: string; agent: AgentKind }[]) {
-        next[r.agent]?.add(r.message_id);
+      const next: Record<string, number> = {};
+      for (const r of data as { message_id: string; agent: AgentKind; run_count: number }[]) {
+        next[`${r.message_id}:${r.agent}`] = r.run_count ?? 1;
       }
-      setAnalyzed(next);
+      setRunCounts(next);
     })();
     return () => {
       active = false;
     };
   }, [bookId]);
 
-  // Realtime: track new analysis rows
+  // Realtime: track analysis rows
   useEffect(() => {
     const ch = supabase
       .channel(`analysis:${bookId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
+        { event: "*", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
         (payload) => {
-          const row = payload.new as { message_id: string; agent: AgentKind };
-          setAnalyzed((prev) => {
-            const next = { ...prev, [row.agent]: new Set(prev[row.agent]) };
-            next[row.agent].add(row.message_id);
-            return next;
-          });
+          const row = (payload.new ?? payload.old) as { message_id: string; agent: AgentKind; run_count?: number };
+          if (!row?.message_id) return;
+          setRunCounts((prev) => ({
+            ...prev,
+            [`${row.message_id}:${row.agent}`]: payload.eventType === "DELETE" ? 0 : row.run_count ?? 1,
+          }));
         },
       )
       .subscribe();
@@ -266,25 +258,24 @@ export function Conversation({
     };
   }, [bookId]);
 
-  const runAgent = async (agent: AgentKind) => {
-    setRunning(agent);
+  const runAgentOnMessage = async (agent: AgentKind, messageId: string) => {
+    const key = `${messageId}:${agent}`;
+    setRunning(key);
     try {
-      const { data, error } = await supabase.functions.invoke("run-agents", { body: { bookId, agent } });
+      const { data, error } = await supabase.functions.invoke("run-agents", {
+        body: { bookId, agent, messageId },
+      });
       if (error) throw error;
       const inserted = (data as { inserted?: number })?.inserted ?? 0;
-      const an = (data as { analyzed?: number })?.analyzed ?? 0;
       const msg = (data as { message?: string })?.message;
       if (msg) toast.info(msg);
-      else toast.success(`${capitalize(agent)} agent proposed ${inserted} edit${inserted === 1 ? "" : "s"} from ${an} message${an === 1 ? "" : "s"}.`);
+      else toast.success(`${capitalize(agent)} proposed ${inserted} edit${inserted === 1 ? "" : "s"}.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not run agent");
     } finally {
       setRunning(null);
     }
   };
-
-  const unanalyzedFor = (agent: AgentKind) =>
-    messages.filter((m) => !analyzed[agent].has(m.id)).length;
 
   const agentList: { id: AgentKind; label: string }[] = [
     { id: "structure", label: "Structure" },
@@ -307,27 +298,13 @@ export function Conversation({
               isMine={m.author_id === user?.id}
               authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
               highlighted={m.id === highlightId}
+              agents={agentList}
+              runCounts={runCounts}
+              running={running}
+              onRunAgent={(agent) => runAgentOnMessage(agent, m.id)}
             />
           ))
         )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border bg-plum/5 px-3 py-2">
-        <span className="text-xs text-muted-foreground">Run an agent:</span>
-        {agentList.map((a) => {
-          const count = unanalyzedFor(a.id);
-          return (
-            <Button
-              key={a.id}
-              size="sm"
-              variant="secondary"
-              disabled={running !== null || count === 0}
-              onClick={() => runAgent(a.id)}
-            >
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-              {running === a.id ? `Running ${a.label}…` : `${a.label}${count > 0 ? ` (${count})` : ""}`}
-            </Button>
-          );
-        })}
       </div>
       <div className="border-t border-border bg-paper/60 p-3">
         <div className="flex items-center gap-2">
@@ -388,11 +365,19 @@ function MessageBubble({
   isMine,
   authorName,
   highlighted,
+  agents,
+  runCounts,
+  running,
+  onRunAgent,
 }: {
   message: Message;
   isMine: boolean;
   authorName: string;
   highlighted?: boolean;
+  agents: { id: AgentKind; label: string }[];
+  runCounts: Record<string, number>;
+  running: string | null;
+  onRunAgent: (agent: AgentKind) => void;
 }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
@@ -411,7 +396,7 @@ function MessageBubble({
   }, [message]);
 
   return (
-    <div id={`msg-${message.id}`} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+    <div id={`msg-${message.id}`} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm transition-all ${
           isMine
@@ -436,6 +421,28 @@ function MessageBubble({
             </p>
           </div>
         )}
+      </div>
+      <div className={`mt-1 flex flex-wrap gap-1 ${isMine ? "justify-end" : "justify-start"} max-w-[80%]`}>
+        {agents.map((a) => {
+          const key = `${message.id}:${a.id}`;
+          const count = runCounts[key] ?? 0;
+          const maxed = count >= 3;
+          const isRunning = running === key;
+          return (
+            <Button
+              key={a.id}
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              disabled={maxed || running !== null}
+              onClick={() => onRunAgent(a.id)}
+              title={maxed ? `${a.label} agent already ran 3 times` : `Run ${a.label} agent on this message`}
+            >
+              <Sparkles className="mr-1 h-3 w-3" />
+              {isRunning ? `${a.label}…` : `${a.label}${count > 0 ? ` (${count}/3)` : ""}`}
+            </Button>
+          );
+        })}
       </div>
     </div>
   );

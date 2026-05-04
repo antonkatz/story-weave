@@ -196,13 +196,14 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { bookId, agent, chapterId, sectionId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string; sectionId?: string };
+    const { bookId, agent, chapterId, sectionId, messageId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string; sectionId?: string; messageId?: string };
     if (!bookId) throw new Error("bookId required");
     if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
       throw new Error("agent must be one of: structure, quotation, writing");
     }
     const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
     const focusedSection = sectionId && /^[0-9a-f-]{36}$/i.test(sectionId) ? sectionId : null;
+    const focusedMessage = messageId && /^[0-9a-f-]{36}$/i.test(messageId) ? messageId : null;
 
     // Load full book context
     const [
@@ -225,18 +226,35 @@ serve(async (req) => {
       supabase.from("agent_prompts_global").select("agent,prompt"),
       supabase.from("book_agent_prompts").select("agent,prompt").eq("book_id", bookId),
       supabase.from("messages").select("id,author_id,kind,body,transcript,created_at").eq("book_id", bookId).order("created_at"),
-      supabase.from("message_agent_analysis").select("message_id").eq("book_id", bookId).eq("agent", agent),
+      supabase.from("message_agent_analysis").select("message_id,run_count").eq("book_id", bookId).eq("agent", agent),
       supabase.from("chapter_message_context").select("chapter_id,message_id").eq("book_id", bookId),
     ]);
 
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
+    const runCountFor = (mid: string) =>
+      ((analyzed ?? []).find((r: any) => r.message_id === mid)?.run_count as number | undefined) ?? 0;
     let newMessages: any[];
     let usedFallback = false;
     // Resolve focused section -> its chapter (for using context links)
     const sectionRow = focusedSection ? (sections ?? []).find((s: any) => s.id === focusedSection) : null;
     const sectionChapterId = sectionRow?.chapter_id ?? null;
     const effectiveFocusChapter = focusedChapter ?? sectionChapterId;
-    if (effectiveFocusChapter) {
+    if (focusedMessage) {
+      const target = (allMsgs ?? []).find((m: any) => m.id === focusedMessage);
+      if (!target) {
+        return new Response(
+          JSON.stringify({ inserted: 0, agent, message: "Message not found." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (runCountFor(focusedMessage) >= 3) {
+        return new Response(
+          JSON.stringify({ inserted: 0, agent, message: `${agent} agent already ran 3 times on this message.` }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      newMessages = [target];
+    } else if (effectiveFocusChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
           .filter((c: any) => c.chapter_id === effectiveFocusChapter)
@@ -426,12 +444,19 @@ serve(async (req) => {
       if (insErr) throw insErr;
     }
 
-    // Mark messages analyzed for this agent (skip in focused chapter mode)
-    if (!focusedChapter && !focusedSection) {
+    // Mark messages analyzed for this agent (skip in focused chapter/section mode)
+    if (focusedMessage) {
+      const next = runCountFor(focusedMessage) + 1;
+      await supabase.from("message_agent_analysis").upsert(
+        [{ message_id: focusedMessage, agent, book_id: bookId, run_count: next, analyzed_at: new Date().toISOString() }],
+        { onConflict: "message_id,agent" },
+      );
+    } else if (!focusedChapter && !focusedSection) {
       const analysisRows = newMessages.map((m: any) => ({
         message_id: m.id,
         agent,
         book_id: bookId,
+        run_count: 1,
       }));
       if (analysisRows.length > 0) {
         await supabase.from("message_agent_analysis").upsert(analysisRows, {
