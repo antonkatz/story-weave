@@ -40,6 +40,7 @@ export function QuotesBrowser({
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [authors, setAuthors] = useState<Record<string, string>>({});
 
   const reload = async () => {
     const [{ data: q }, { data: pl }, { data: sec }] = await Promise.all([
@@ -50,6 +51,15 @@ export function QuotesBrowser({
     setQuotes((q ?? []) as Quote[]);
     setPlacements((pl ?? []) as Placement[]);
     setSections((sec ?? []) as Section[]);
+    const speakerIds = Array.from(new Set(((q ?? []) as Quote[]).map((x) => x.speaker_id).filter(Boolean) as string[]));
+    if (speakerIds.length) {
+      const { data: profs } = await supabase.from("profiles").select("id,display_name").in("id", speakerIds);
+      const map: Record<string, string> = {};
+      for (const p of profs ?? []) map[(p as any).id] = (p as any).display_name;
+      setAuthors(map);
+    } else {
+      setAuthors({});
+    }
   };
 
   useEffect(() => {
