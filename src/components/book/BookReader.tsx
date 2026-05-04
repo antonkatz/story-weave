@@ -11,7 +11,7 @@ export type ReaderSection = {
   content: string;
   position: number;
 };
-export type ReaderQuote = { id: string; text: string };
+export type ReaderQuote = { id: string; text: string; author_name?: string | null };
 export type ReaderPlacement = { id: string; quote_id: string; chapter_id: string; section_id: string | null };
 
 export const PRINT_CSS = `
@@ -28,6 +28,7 @@ export const PRINT_CSS = `
 .book h3 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
 .book p { margin: 0.75rem 0; }
 .book blockquote { border-left: 3px solid #888; padding-left: 1rem; margin: 1rem 0; font-style: italic; }
+.book blockquote .cite { display: block; margin-top: 0.25rem; font-style: normal; font-size: 0.875rem; color: #666; }
 .book .desc, .book .synopsis { font-style: italic; color: #555; }
 `;
 
@@ -61,7 +62,8 @@ export function renderBookHtml(
       .map((p) => quoteFor(p.quote_id))
       .filter(Boolean);
     for (const q of chapterQuotes) {
-      html += `<blockquote>${escapeHtml(q!.text)}</blockquote>`;
+      const cite = q!.author_name ? `<footer class="cite">— ${escapeHtml(q!.author_name)}</footer>` : "";
+      html += `<blockquote>${escapeHtml(q!.text)}${cite}</blockquote>`;
     }
     const chapterSections = sections.filter((s) => s.chapter_id === c.id);
     for (const s of chapterSections) {
@@ -71,7 +73,8 @@ export function renderBookHtml(
         .map((p) => quoteFor(p.quote_id))
         .filter(Boolean);
       for (const q of sectionQuotes) {
-        html += `<blockquote>${escapeHtml(q!.text)}</blockquote>`;
+        const cite = q!.author_name ? `<footer class="cite">— ${escapeHtml(q!.author_name)}</footer>` : "";
+        html += `<blockquote>${escapeHtml(q!.text)}${cite}</blockquote>`;
       }
       if (s.content) {
         html += s.content
@@ -132,6 +135,9 @@ export function BookReader({
                   className="my-4 border-l-4 border-plum/50 pl-4 font-serif italic"
                 >
                   {q.text}
+                  {q.author_name && (
+                    <footer className="mt-1 text-sm not-italic text-muted-foreground">— {q.author_name}</footer>
+                  )}
                 </blockquote>
               ))}
               {chapterSections.map((s) => {
@@ -148,6 +154,9 @@ export function BookReader({
                         className="my-3 border-l-4 border-plum/50 pl-4 font-serif italic"
                       >
                         {q.text}
+                        {q.author_name && (
+                          <footer className="mt-1 text-sm not-italic text-muted-foreground">— {q.author_name}</footer>
+                        )}
                       </blockquote>
                     ))}
                     {s.content &&

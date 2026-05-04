@@ -290,10 +290,18 @@ serve(async (req) => {
 
     const bookContext = `# Book\nTitle: ${book?.title ?? "(untitled)"}\nDescription: ${book?.description ?? "(none)"}\n\n# Existing chapters & sections\n${chaptersText || "(none yet)"}\n\n# Existing quotes\n${quotesText || "(none)"}`;
 
+    // Load author profiles for messages so the agent can attribute quotes
+    const authorIds = Array.from(new Set((allMsgs ?? []).map((m: any) => m.author_id).filter(Boolean)));
+    const { data: authorProfiles } = authorIds.length
+      ? await supabase.from("profiles").select("id,display_name").in("id", authorIds)
+      : { data: [] as any[] };
+    const authorName = (id: string | null) =>
+      (authorProfiles ?? []).find((p: any) => p.id === id)?.display_name || "Unknown";
+
     const messagesText = newMessages
       .map((m: any) => {
         const t = m.kind === "voice" ? (m.transcript ?? "[voice — no transcript]") : m.body;
-        return `- [msg ${m.id}, author ${m.author_id}] ${t}`;
+        return `- [msg ${m.id}, author_id ${m.author_id} ("${authorName(m.author_id)}")] ${t}`;
       })
       .join("\n");
 
@@ -332,7 +340,7 @@ serve(async (req) => {
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("quotation"),
-        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, the source_message_id (must be one of the msg ids above), and a chapter_id where the quote belongs (REQUIRED — must be one of the existing chapter ids). section_id is optional (null = quote attached at chapter level). Then emit additional assign_quote actions if the quote belongs to multiple chapters/sections. Avoid duplicating quotes already listed.`,
+        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, the source_message_id (must be one of the msg ids above), the speaker_id (REQUIRED — must equal the author_id of the source message — this attributes the quote to its author), and a chapter_id where the quote belongs (REQUIRED — must be one of the existing chapter ids). section_id is optional (null = quote attached at chapter level). Then emit additional assign_quote actions if the quote belongs to multiple chapters/sections. Avoid duplicating quotes already listed.`,
         QUOTATION_TOOLS,
         "quotation_actions",
       );
@@ -345,6 +353,12 @@ serve(async (req) => {
           }
           if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
             a.source_message_id = null;
+          }
+          // Auto-fill speaker_id from source message author if missing/invalid
+          const srcMsg = a.source_message_id ? (allMsgs ?? []).find((m: any) => m.id === a.source_message_id) : null;
+          const validAuthorIds = new Set(authorIds);
+          if (!a.speaker_id || !validAuthorIds.has(a.speaker_id)) {
+            a.speaker_id = srcMsg?.author_id ?? null;
           }
           // Default to first chapter if model didn't pick one and only one exists
           if (!a.chapter_id && (chapters ?? []).length === 1) {

@@ -40,6 +40,7 @@ export function QuotesBrowser({
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [authors, setAuthors] = useState<Record<string, string>>({});
 
   const reload = async () => {
     const [{ data: q }, { data: pl }, { data: sec }] = await Promise.all([
@@ -50,6 +51,15 @@ export function QuotesBrowser({
     setQuotes((q ?? []) as Quote[]);
     setPlacements((pl ?? []) as Placement[]);
     setSections((sec ?? []) as Section[]);
+    const speakerIds = Array.from(new Set(((q ?? []) as Quote[]).map((x) => x.speaker_id).filter(Boolean) as string[]));
+    if (speakerIds.length) {
+      const { data: profs } = await supabase.from("profiles").select("id,display_name").in("id", speakerIds);
+      const map: Record<string, string> = {};
+      for (const p of profs ?? []) map[(p as any).id] = (p as any).display_name;
+      setAuthors(map);
+    } else {
+      setAuthors({});
+    }
   };
 
   useEffect(() => {
@@ -109,7 +119,12 @@ export function QuotesBrowser({
           <div key={q.id} className="rounded-lg border border-border bg-paper p-3 shadow-sm">
             <div className="flex items-start gap-2">
               <QuoteIcon className="mt-0.5 h-4 w-4 shrink-0 text-plum" />
-              <p className="flex-1 font-serif text-sm italic leading-relaxed">"{q.text}"</p>
+              <div className="flex-1">
+                <p className="font-serif text-sm italic leading-relaxed">"{q.text}"</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  — {q.speaker_id ? authors[q.speaker_id] ?? "Unknown" : "Unattributed"}
+                </p>
+              </div>
               <Button variant="ghost" size="icon" onClick={() => deleteQuote(q.id)} aria-label="Delete quote">
                 <Trash2 className="h-4 w-4 text-muted-foreground" />
               </Button>
