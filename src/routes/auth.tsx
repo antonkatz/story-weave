@@ -17,9 +17,6 @@ const credentialsSchema = z.object({
 });
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
-    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
-  }),
   component: () => (
     <AuthProvider>
       <AuthPage />
@@ -30,8 +27,10 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const { redirect } = Route.useSearch();
-  const target = redirect ?? "/books";
+  const target =
+    (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("redirect")) ||
+    "/books";
 
   useEffect(() => {
     if (!loading && user) navigate({ to: target });
