@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import hfxAvatar from "@/assets/hfx-ai-guy.png";
+import hfxAvatar from "@/assets/anton-avatar.png";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 
