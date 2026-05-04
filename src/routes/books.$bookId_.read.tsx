@@ -47,7 +47,7 @@ function ReadPage() {
             .select("id,chapter_id,title,purpose,content,position")
             .eq("book_id", bookId)
             .order("position"),
-          supabase.from("quotes").select("id,text").eq("book_id", bookId),
+          supabase.from("quotes").select("id,text,speaker_id").eq("book_id", bookId),
           supabase
             .from("quote_placements")
             .select("id,quote_id,chapter_id,section_id")
@@ -57,6 +57,17 @@ function ReadPage() {
         toast.error("Could not load book");
         return;
       }
+      const speakerIds = Array.from(new Set(((q ?? []) as any[]).map((x) => x.speaker_id).filter(Boolean)));
+      const { data: profs } = speakerIds.length
+        ? await supabase.from("profiles").select("id,display_name").in("id", speakerIds)
+        : { data: [] as any[] };
+      const nameOf = (id: string | null) =>
+        (profs ?? []).find((p: any) => p.id === id)?.display_name ?? null;
+      const quotesWithAuthor = ((q ?? []) as any[]).map((x) => ({
+        id: x.id,
+        text: x.text,
+        author_name: nameOf(x.speaker_id),
+      }));
       setBook(b as ReaderBook);
       setChapters((ch ?? []) as ReaderChapter[]);
       setSections((sec ?? []) as ReaderSection[]);
