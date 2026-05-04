@@ -533,7 +533,7 @@ export type Database = {
       redeem_invite: { Args: { _token: string }; Returns: string }
     }
     Enums: {
-      agent_kind: "structure" | "quotation" | "writing"
+      agent_kind: "structure" | "quotation" | "writing" | "splitter"
       edit_kind: "append" | "replace" | "new_chapter"
       edit_status: "pending" | "approved" | "rejected"
       member_role: "owner" | "co_author"
@@ -665,7 +665,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      agent_kind: ["structure", "quotation", "writing"],
+      agent_kind: ["structure", "quotation", "writing", "splitter"],
       edit_kind: ["append", "replace", "new_chapter"],
       edit_status: ["pending", "approved", "rejected"],
       member_role: ["owner", "co_author"],

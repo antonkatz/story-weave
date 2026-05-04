@@ -14,7 +14,9 @@ const corsHeaders = {
 
 const MODEL = "google/gemini-3-flash-preview";
 
-type AgentKind = "structure" | "quotation" | "writing";
+type AgentKind = "structure" | "quotation" | "writing" | "splitter";
+
+const MAX_CHARS_PER_BATCH = 5000;
 
 const STRUCTURE_TOOLS = [
   {
@@ -35,7 +37,6 @@ const STRUCTURE_TOOLS = [
                   enum: [
                     "add_chapter",
                     "rename_chapter",
-                    "set_chapter_synopsis",
                     "set_chapter_theme",
                     "combine_chapters",
                     "add_section",
@@ -52,6 +53,9 @@ const STRUCTURE_TOOLS = [
                 theme: { type: ["string", "null"] },
                 purpose: { type: ["string", "null"] },
                 position: { type: ["number", "null"] },
+                chapter_title_hint: { type: ["string", "null"] },
+                chapter_synopsis_hint: { type: ["string", "null"] },
+                chapter_theme_hint: { type: ["string", "null"] },
                 summary: { type: "string" },
               },
               required: ["type", "summary"],
@@ -137,6 +141,48 @@ const WRITING_TOOLS = [
   },
 ];
 
+const SPLITTER_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "splitter_actions",
+      description: "Detect long messages or subtitle-like transcripts that should be split into smaller messages, each representing a single utterance.",
+      parameters: {
+        type: "object",
+        properties: {
+          actions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["split_message"] },
+                source_message_id: { type: "string" },
+                summary: { type: "string" },
+                parts: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      speaker_label: { type: ["string", "null"] },
+                      text: { type: "string" },
+                    },
+                    required: ["text"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["type", "source_message_id", "parts", "summary"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["actions"],
+        additionalProperties: false,
+      },
+    },
+  },
+];
+
 async function callAgent(
   apiKey: string,
   systemPrompt: string,
@@ -198,8 +244,8 @@ serve(async (req) => {
 
     const { bookId, agent, chapterId, sectionId, messageId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string; sectionId?: string; messageId?: string };
     if (!bookId) throw new Error("bookId required");
-    if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
-      throw new Error("agent must be one of: structure, quotation, writing");
+    if (!agent || !["structure", "quotation", "writing", "splitter"].includes(agent)) {
+      throw new Error("agent must be one of: structure, quotation, writing, splitter");
     }
     const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
     const focusedSection = sectionId && /^[0-9a-f-]{36}$/i.test(sectionId) ? sectionId : null;
@@ -247,13 +293,19 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      if (runCountFor(focusedMessage) >= 3) {
+      // Catch-up: include all earlier unprocessed messages too
+      const targetIdx = (allMsgs ?? []).findIndex((m: any) => m.id === focusedMessage);
+      const earlier = (allMsgs ?? [])
+        .slice(0, targetIdx)
+        .filter((m: any) => !analyzedSet.has(m.id));
+      const includeTarget = runCountFor(focusedMessage) < 3;
+      newMessages = [...earlier, ...(includeTarget ? [target] : [])];
+      if (newMessages.length === 0) {
         return new Response(
           JSON.stringify({ inserted: 0, agent, message: `${agent} agent already ran 3 times on this message.` }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      newMessages = [target];
     } else if (effectiveFocusChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
