@@ -1,10 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Users, Bot, BookOpen } from "lucide-react";
+import { ArrowLeft, Users, Bot, BookOpen, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Conversation } from "@/components/book/Conversation";
 import { Chapters } from "@/components/book/Chapters";
@@ -12,6 +21,7 @@ import { QuotesBrowser } from "@/components/book/QuotesBrowser";
 import { InviteDialog } from "@/components/book/InviteDialog";
 import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
 import { ActionHistory } from "@/components/book/ActionHistory";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/books/$bookId")({
   component: () => (
