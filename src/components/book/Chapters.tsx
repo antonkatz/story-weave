@@ -441,6 +441,7 @@ function ChapterEditor({
             {sections.map((s) => (
               <SectionEditor
                 key={s.id}
+                bookId={bookId}
                 section={s}
                 quotes={sectionQuotes(s.id)}
                 wrapperRef={(el) => {
