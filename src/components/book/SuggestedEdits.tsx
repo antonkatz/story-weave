@@ -345,11 +345,35 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
       return { chapterId: targetId, sectionId: null };
     }
     case "add_section": {
-      const chapterId = edit.chapter_id ?? p.chapter_id;
+      let chapterId = edit.chapter_id ?? p.chapter_id;
       if (!chapterId) {
-        throw new Error(
-          "This section was proposed for a not-yet-created chapter. Approve the related add_chapter first, then re-run the agent.",
-        );
+        // Auto-create chapter from hint payload
+        const titleHint = p.chapter_title_hint;
+        if (!titleHint) {
+          throw new Error(
+            "This section was proposed for a not-yet-created chapter. Re-run the structure agent so it includes a chapter_title_hint.",
+          );
+        }
+        const { data: chExisting } = await supabase
+          .from("chapters")
+          .select("position")
+          .eq("book_id", bookId)
+          .order("position", { ascending: false })
+          .limit(1);
+        const chPos = (chExisting?.[0]?.position ?? -1) + 1;
+        const { data: newChapter, error: chErr } = await supabase
+          .from("chapters")
+          .insert({
+            book_id: bookId,
+            title: titleHint,
+            position: chPos,
+            synopsis: p.chapter_synopsis_hint || "",
+            theme: p.chapter_theme_hint || "",
+          })
+          .select("id")
+          .single();
+        if (chErr) throw chErr;
+        chapterId = newChapter.id;
       }
       const { data: existing } = await supabase
         .from("chapter_sections")
