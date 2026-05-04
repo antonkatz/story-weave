@@ -231,13 +231,30 @@ serve(async (req) => {
     ]);
 
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
+    const runCountFor = (mid: string) =>
+      ((analyzed ?? []).find((r: any) => r.message_id === mid)?.run_count as number | undefined) ?? 0;
     let newMessages: any[];
     let usedFallback = false;
     // Resolve focused section -> its chapter (for using context links)
     const sectionRow = focusedSection ? (sections ?? []).find((s: any) => s.id === focusedSection) : null;
     const sectionChapterId = sectionRow?.chapter_id ?? null;
     const effectiveFocusChapter = focusedChapter ?? sectionChapterId;
-    if (effectiveFocusChapter) {
+    if (focusedMessage) {
+      const target = (allMsgs ?? []).find((m: any) => m.id === focusedMessage);
+      if (!target) {
+        return new Response(
+          JSON.stringify({ inserted: 0, agent, message: "Message not found." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (runCountFor(focusedMessage) >= 3) {
+        return new Response(
+          JSON.stringify({ inserted: 0, agent, message: `${agent} agent already ran 3 times on this message.` }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      newMessages = [target];
+    } else if (effectiveFocusChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
           .filter((c: any) => c.chapter_id === effectiveFocusChapter)
