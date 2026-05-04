@@ -71,7 +71,7 @@ function ReadPage() {
       setBook(b as ReaderBook);
       setChapters((ch ?? []) as ReaderChapter[]);
       setSections((sec ?? []) as ReaderSection[]);
-      setQuotes((q ?? []) as ReaderQuote[]);
+      setQuotes(quotesWithAuthor as ReaderQuote[]);
       setPlacements((pl ?? []) as ReaderPlacement[]);
       setLoading(false);
     })();
