@@ -196,12 +196,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { bookId, agent, chapterId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string };
+    const { bookId, agent, chapterId, sectionId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string; sectionId?: string };
     if (!bookId) throw new Error("bookId required");
     if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
       throw new Error("agent must be one of: structure, quotation, writing");
     }
     const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
+    const focusedSection = sectionId && /^[0-9a-f-]{36}$/i.test(sectionId) ? sectionId : null;
 
     // Load full book context
     const [
@@ -231,17 +232,19 @@ serve(async (req) => {
     const analyzedSet = new Set((analyzed ?? []).map((r: any) => r.message_id));
     let newMessages: any[];
     let usedFallback = false;
-    if (focusedChapter) {
+    // Resolve focused section -> its chapter (for using context links)
+    const sectionRow = focusedSection ? (sections ?? []).find((s: any) => s.id === focusedSection) : null;
+    const sectionChapterId = sectionRow?.chapter_id ?? null;
+    const effectiveFocusChapter = focusedChapter ?? sectionChapterId;
+    if (effectiveFocusChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
-          .filter((c: any) => c.chapter_id === focusedChapter)
+          .filter((c: any) => c.chapter_id === effectiveFocusChapter)
           .map((c: any) => c.message_id),
       );
       if (focusedMsgIds.size > 0) {
         newMessages = (allMsgs ?? []).filter((m: any) => focusedMsgIds.has(m.id));
       } else {
-        // Fallback: chapter has no linked context messages — use all messages so the
-        // agent has something to work with. Tell the model to focus on this chapter.
         usedFallback = true;
         newMessages = allMsgs ?? [];
       }
@@ -361,13 +364,21 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+      const sectionFocusNote = focusedSection
+        ? `\n\nFOCUS MODE: only propose write_section / append_to_section / replace_section actions for section_id ${focusedSection} (in chapter ${sectionChapterId}). Do not touch other sections.${usedFallback ? " The chapter has no explicitly-linked context messages, so the messages above are the full conversation — infer relevance from the section's title/purpose." : ""}`
+        : "";
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("writing"),
-        `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.`,
+        `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.${sectionFocusNote}`,
         WRITING_TOOLS,
         "writing_actions",
       );
+      if (focusedSection) {
+        actions = actions.filter((a: any) =>
+          ["write_section", "append_to_section", "replace_section"].includes(a.type) && a.section_id === focusedSection,
+        );
+      }
     }
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -402,7 +413,7 @@ serve(async (req) => {
     }
 
     // Mark messages analyzed for this agent (skip in focused chapter mode)
-    if (!focusedChapter) {
+    if (!focusedChapter && !focusedSection) {
       const analysisRows = newMessages.map((m: any) => ({
         message_id: m.id,
         agent,

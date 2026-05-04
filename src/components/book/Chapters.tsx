@@ -316,14 +316,29 @@ function ChapterEditor({
 
   const addSection = async () => {
     const maxPos = sections.reduce((m, s) => Math.max(m, s.position), -1) + 1;
-    const { error } = await supabase.from("chapter_sections").insert({
-      book_id: bookId,
-      chapter_id: chapter.id,
-      title: `Section ${sections.length + 1}`,
-      purpose: "",
-      position: maxPos,
-    });
-    if (error) toast.error("Could not add section");
+    const { data, error } = await supabase
+      .from("chapter_sections")
+      .insert({
+        book_id: bookId,
+        chapter_id: chapter.id,
+        title: `Section ${sections.length + 1}`,
+        purpose: "",
+        position: maxPos,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      toast.error("Could not add section");
+      return;
+    }
+    await reloadSections();
+    if (data?.id) {
+      setHighlightedSectionId(data.id);
+      setTimeout(() => {
+        sectionRefs.current[data.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
+      setTimeout(() => setHighlightedSectionId(null), 2200);
+    }
   };
 
   const sectionQuotes = (sectionId: string) =>
@@ -426,6 +441,7 @@ function ChapterEditor({
             {sections.map((s) => (
               <SectionEditor
                 key={s.id}
+                bookId={bookId}
                 section={s}
                 quotes={sectionQuotes(s.id)}
                 wrapperRef={(el) => {
@@ -448,11 +464,13 @@ function ChapterEditor({
 }
 
 function SectionEditor({
+  bookId,
   section,
   quotes,
   wrapperRef,
   highlighted,
 }: {
+  bookId: string;
   section: Section;
   quotes: Quote[];
   wrapperRef?: (el: HTMLDivElement | null) => void;
@@ -462,6 +480,7 @@ function SectionEditor({
   const [purpose, setPurpose] = useState(section.purpose);
   const [content, setContent] = useState(section.content);
   const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
     setTitle(section.title);
@@ -488,6 +507,24 @@ function SectionEditor({
     await supabase.from("chapter_sections").delete().eq("id", section.id);
   };
 
+  const runWriting = async () => {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-agents", {
+        body: { bookId, agent: "writing", sectionId: section.id },
+      });
+      if (error) throw error;
+      const inserted = (data as { inserted?: number })?.inserted ?? 0;
+      const msg = (data as { message?: string })?.message;
+      if (msg) toast.info(msg);
+      else toast.success(`Proposed ${inserted} writing edit${inserted === 1 ? "" : "s"} for this section.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not run agent");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div
       ref={wrapperRef}
@@ -500,6 +537,9 @@ function SectionEditor({
           onChange={(e) => setTitle(e.target.value)}
           className="border-none bg-transparent px-0 font-serif !text-lg font-semibold focus-visible:ring-0"
         />
+        <Button variant="ghost" size="sm" onClick={runWriting} disabled={running} title="Run Writing agent on this section">
+          <Sparkles className="mr-1 h-3.5 w-3.5" /> {running ? "Running…" : "Write"}
+        </Button>
         <Button variant="ghost" size="icon" onClick={remove} aria-label="Delete section">
           <Trash2 className="h-4 w-4 text-muted-foreground" />
         </Button>

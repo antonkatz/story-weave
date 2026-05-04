@@ -176,10 +176,12 @@ function BookPage() {
                 )}
               </div>
             </div>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/books/$bookId/read" params={{ bookId }}>
-                <BookOpen className="mr-1.5 h-4 w-4" /> Read / Export
-              </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate({ to: "/books/$bookId/read", params: { bookId } })}
+            >
+              <BookOpen className="mr-1.5 h-4 w-4" /> Read / Export
             </Button>
             <AgentSettingsDialog
               bookId={bookId}

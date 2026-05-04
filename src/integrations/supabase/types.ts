@@ -489,6 +489,18 @@ export type Database = {
           redeemed_at: string
         }[]
       }
+      invite_book_content: { Args: { _token: string }; Returns: Json }
+      invite_preview: {
+        Args: { _token: string }
+        Returns: {
+          book_description: string
+          book_id: string
+          book_title: string
+          expires_at: string
+          inviter_name: string
+          redeemed_at: string
+        }[]
+      }
       is_book_member: {
         Args: { _book_id: string; _user_id: string }
         Returns: boolean

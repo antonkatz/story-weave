@@ -27,10 +27,14 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const target =
+    (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("redirect")) ||
+    "/books";
 
   useEffect(() => {
-    if (!loading && user) navigate({ to: "/books" });
-  }, [user, loading, navigate]);
+    if (!loading && user) navigate({ to: target });
+  }, [user, loading, navigate, target]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
