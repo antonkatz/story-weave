@@ -199,36 +199,41 @@ function BookPage() {
 
       {/* Workspace */}
       <main className="grid flex-1 overflow-hidden lg:grid-cols-[1fr_420px]">
-        <section className="overflow-hidden border-r border-border paper-texture">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-border bg-paper/70 px-4 py-2">
-              <TabsList>
-                <TabsTrigger value="chapters">Chapters ({chapters.length})</TabsTrigger>
-                <TabsTrigger value="quotes">Quotes</TabsTrigger>
-              </TabsList>
-            </div>
-            <TabsContent value="chapters" className="m-0 flex-1 overflow-hidden">
-              <Chapters
-                bookId={bookId}
-                chapters={chapters}
-                onChange={reloadChapters}
-                selectedChapterId={selectedChapterId}
-                onSelectChapter={setSelectedChapterId}
-                onJumpToMessage={(id) => setJumpToMessageId(`${id}#${Date.now()}`)}
-                selectedSectionId={selectedSectionId ? selectedSectionId.split("#")[0] : null}
-              />
-            </TabsContent>
-            <TabsContent value="quotes" className="m-0 flex-1 overflow-hidden">
-              <QuotesBrowser
-                bookId={bookId}
-                chapters={chapters}
-                onJumpToChapter={(chapterId) => {
-                  setActiveTab("chapters");
-                  setSelectedChapterId(chapterId);
-                }}
-              />
-            </TabsContent>
-          </Tabs>
+        <section className="flex flex-col overflow-hidden border-r border-border paper-texture">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
+              <div className="flex items-center justify-between border-b border-border bg-paper/70 px-4 py-2">
+                <TabsList>
+                  <TabsTrigger value="chapters">Chapters ({chapters.length})</TabsTrigger>
+                  <TabsTrigger value="quotes">Quotes</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="chapters" className="m-0 flex-1 overflow-hidden">
+                <Chapters
+                  bookId={bookId}
+                  chapters={chapters}
+                  onChange={reloadChapters}
+                  selectedChapterId={selectedChapterId}
+                  onSelectChapter={setSelectedChapterId}
+                  onJumpToMessage={(id) => setJumpToMessageId(`${id}#${Date.now()}`)}
+                  selectedSectionId={selectedSectionId ? selectedSectionId.split("#")[0] : null}
+                />
+              </TabsContent>
+              <TabsContent value="quotes" className="m-0 flex-1 overflow-hidden">
+                <QuotesBrowser
+                  bookId={bookId}
+                  chapters={chapters}
+                  onJumpToChapter={(chapterId) => {
+                    setActiveTab("chapters");
+                    setSelectedChapterId(chapterId);
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+          <div className="flex min-h-[30%] flex-none flex-col" style={{ height: "32%" }}>
+            <ActionHistory bookId={bookId} />
+          </div>
         </section>
 
         <aside className="flex flex-col overflow-hidden bg-paper">
