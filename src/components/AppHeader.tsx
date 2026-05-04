@@ -12,7 +12,7 @@ export function AppHeader() {
     <header className="border-b border-border bg-paper/70 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2 text-foreground">
-          <img src={weaveLogo} alt="Weave logo" className="h-7 w-7 object-contain" />
+          <img src={weaveLogo} alt="Weave logo" className="h-10 w-10 object-contain" />
           <span className="font-serif text-xl font-semibold tracking-tight">Weave</span>
         </Link>
         <div className="flex items-center gap-3">
