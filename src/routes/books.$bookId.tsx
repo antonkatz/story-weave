@@ -165,9 +165,35 @@ function BookPage() {
                 <ArrowLeft className="mr-1 h-4 w-4" /> Books
               </Link>
             </Button>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Book</p>
-              <h1 className="font-serif text-xl font-semibold leading-tight">{book.title}</h1>
+            <div className="flex items-center gap-1">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Book</p>
+                <h1 className="font-serif text-xl font-semibold leading-tight">{book.title}</h1>
+              </div>
+              {user?.id === book.owner_id && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1 h-7 w-7 text-muted-foreground"
+                    aria-label="Rename book"
+                    title="Rename book"
+                    onClick={() => setRenameOpen(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    aria-label="Delete book"
+                    title="Delete book"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
