@@ -244,8 +244,8 @@ serve(async (req) => {
 
     const { bookId, agent, chapterId, sectionId, messageId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string; sectionId?: string; messageId?: string };
     if (!bookId) throw new Error("bookId required");
-    if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
-      throw new Error("agent must be one of: structure, quotation, writing");
+    if (!agent || !["structure", "quotation", "writing", "splitter"].includes(agent)) {
+      throw new Error("agent must be one of: structure, quotation, writing, splitter");
     }
     const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
     const focusedSection = sectionId && /^[0-9a-f-]{36}$/i.test(sectionId) ? sectionId : null;
