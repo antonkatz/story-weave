@@ -51,7 +51,7 @@ export const Route = createFileRoute("/api/contact-feedback")({
               "X-Connection-Api-Key": RESEND_API_KEY,
             },
             body: JSON.stringify({
-              from: "Weave Feedback <onboarding@resend.dev>",
+              from: "Weave Feedback <notify@hfxaiguy.com>",
               to: ["anton@hfxaiguy.com"],
               subject: `Weave feedback${name ? ` from ${name}` : ""}`,
               html,
