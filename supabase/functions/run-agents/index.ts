@@ -368,12 +368,7 @@ serve(async (req) => {
     const authorName = (id: string | null) =>
       (authorProfiles ?? []).find((p: any) => p.id === id)?.display_name || "Unknown";
 
-    const messagesText = newMessages
-      .map((m: any) => {
-        const t = m.kind === "voice" ? (m.transcript ?? "[voice — no transcript]") : m.body;
-        return `- [msg ${m.id}, author_id ${m.author_id} ("${authorName(m.author_id)}")] ${t}`;
-      })
-      .join("\n");
+
 
     // Batch messages by cumulative char length so a single model call doesn't exceed MAX_CHARS_PER_BATCH.
     const buildMessagesText = (msgs: any[]) =>
