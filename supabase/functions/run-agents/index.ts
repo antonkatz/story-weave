@@ -196,12 +196,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { bookId, agent, chapterId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string };
+    const { bookId, agent, chapterId, sectionId } = (await req.json()) as { bookId: string; agent: AgentKind; chapterId?: string; sectionId?: string };
     if (!bookId) throw new Error("bookId required");
     if (!agent || !["structure", "quotation", "writing"].includes(agent)) {
       throw new Error("agent must be one of: structure, quotation, writing");
     }
     const focusedChapter = chapterId && /^[0-9a-f-]{36}$/i.test(chapterId) ? chapterId : null;
+    const focusedSection = sectionId && /^[0-9a-f-]{36}$/i.test(sectionId) ? sectionId : null;
 
     // Load full book context
     const [
