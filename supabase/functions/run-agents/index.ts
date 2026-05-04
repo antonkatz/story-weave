@@ -375,94 +375,137 @@ serve(async (req) => {
       })
       .join("\n");
 
-    let actions: any[] = [];
-    if (agent === "structure") {
-      const focusNote = focusedChapter
-        ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.${usedFallback ? " This chapter has no explicitly-linked context messages, so the messages above are the full book conversation — infer which parts relate to this chapter from its title/synopsis/theme." : ""}`
-        : "";
-      actions = await callAgent(
-        LOVABLE_API_KEY,
-        promptFor("structure"),
-        `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, emit add_chapter only and skip the section this round. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.${focusNote}`,
-        STRUCTURE_TOOLS,
-        "structure_actions",
-      );
-      // Attach the source message ids to add_chapter so the applier can record chapter context
-      const newMsgIds = newMessages.map((m: any) => m.id);
-      for (const a of actions) {
-        if (a.type === "add_chapter") {
-          a.source_message_ids = newMsgIds;
+    // Batch messages by cumulative char length so a single model call doesn't exceed MAX_CHARS_PER_BATCH.
+    const buildMessagesText = (msgs: any[]) =>
+      msgs
+        .map((m: any) => {
+          const t = m.kind === "voice" ? (m.transcript ?? "[voice — no transcript]") : m.body;
+          return `- [msg ${m.id}, author_id ${m.author_id} ("${authorName(m.author_id)}")] ${t}`;
+        })
+        .join("\n");
+
+    const batches: any[][] = [];
+    {
+      let cur: any[] = [];
+      let curLen = 0;
+      for (const m of newMessages) {
+        const t = m.kind === "voice" ? (m.transcript ?? "") : (m.body ?? "");
+        const len = (t?.length ?? 0) + 80; // overhead per line
+        if (cur.length > 0 && curLen + len > MAX_CHARS_PER_BATCH) {
+          batches.push(cur);
+          cur = [];
+          curLen = 0;
         }
-        if (focusedChapter && a.type === "add_section" && !a.chapter_id) {
-          a.chapter_id = focusedChapter;
-        }
+        cur.push(m);
+        curLen += len;
       }
-      if (focusedChapter) {
-        // Keep only section-level actions touching the focused chapter
-        actions = actions.filter((a: any) => {
-          if (["add_section", "rename_section", "set_section_purpose", "remove_section"].includes(a.type)) {
-            return true;
+      if (cur.length > 0) batches.push(cur);
+    }
+
+    let actions: any[] = [];
+
+    for (const batch of batches) {
+      const messagesText = buildMessagesText(batch);
+      let batchActions: any[] = [];
+
+      if (agent === "structure") {
+        const focusNote = focusedChapter
+          ? `\n\nFOCUS MODE: only propose section-level actions (add_section / rename_section / set_section_purpose / remove_section) for chapter id ${focusedChapter}. Do NOT touch other chapters and do NOT add_chapter.${usedFallback ? " This chapter has no explicitly-linked context messages, so the messages above are the full book conversation — infer which parts relate to this chapter from its title/synopsis/theme." : ""}`
+          : "";
+        batchActions = await callAgent(
+          LOVABLE_API_KEY,
+          promptFor("structure"),
+          `${bookContext}\n\n# New conversation messages since this agent last ran\n${messagesText}\n\nPropose structure actions. CRITICAL: chapter_id and section_id MUST be one of the ids listed above — never invent ids. If a section belongs to a chapter that doesn't exist yet, you may emit add_section with chapter_id=null AND fill chapter_title_hint, chapter_synopsis_hint, chapter_theme_hint so the chapter can be auto-created on approval. The synopsis is set ONLY at chapter creation time — never propose set_chapter_synopsis. Be conservative: only propose changes the conversation supports and that don't duplicate existing structure.${focusNote}`,
+          STRUCTURE_TOOLS,
+          "structure_actions",
+        );
+        const newMsgIds = batch.map((m: any) => m.id);
+        for (const a of batchActions) {
+          if (a.type === "add_chapter") {
+            a.source_message_ids = newMsgIds;
           }
-          return false;
+          if (focusedChapter && a.type === "add_section" && !a.chapter_id) {
+            a.chapter_id = focusedChapter;
+          }
+        }
+        if (focusedChapter) {
+          batchActions = batchActions.filter((a: any) =>
+            ["add_section", "rename_section", "set_section_purpose", "remove_section"].includes(a.type),
+          );
+        }
+      } else if (agent === "quotation") {
+        batchActions = await callAgent(
+          LOVABLE_API_KEY,
+          promptFor("quotation"),
+          `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, the source_message_id (must be one of the msg ids above), the speaker_id (REQUIRED — must equal the author_id of the source message — this attributes the quote to its author), and a chapter_id where the quote belongs (REQUIRED — must be one of the existing chapter ids). section_id is optional (null = quote attached at chapter level). Then emit additional assign_quote actions if the quote belongs to multiple chapters/sections. Avoid duplicating quotes already listed.`,
+          QUOTATION_TOOLS,
+          "quotation_actions",
+        );
+        batchActions = batchActions.filter((a: any) => {
+          if (a.type === "create_quote") {
+            if (!a.text || typeof a.text !== "string" || !a.text.trim()) {
+              console.warn("dropping create_quote with empty text", a);
+              return false;
+            }
+            if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
+              a.source_message_id = null;
+            }
+            const srcMsg = a.source_message_id ? (allMsgs ?? []).find((m: any) => m.id === a.source_message_id) : null;
+            const validAuthorIds = new Set(authorIds);
+            if (!a.speaker_id || !validAuthorIds.has(a.speaker_id)) {
+              a.speaker_id = srcMsg?.author_id ?? null;
+            }
+            if (!a.chapter_id && (chapters ?? []).length === 1) {
+              a.chapter_id = (chapters as any[])[0].id;
+            }
+            if (!a.chapter_id) {
+              console.warn("dropping create_quote without chapter_id", a);
+              return false;
+            }
+          }
+          return true;
+        });
+      } else if (agent === "writing") {
+        if ((sections ?? []).length === 0) {
+          return new Response(
+            JSON.stringify({ inserted: 0, agent, message: "No sections to write into. Run Structure first." }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        const sectionFocusNote = focusedSection
+          ? `\n\nFOCUS MODE: only propose write_section / append_to_section / replace_section actions for section_id ${focusedSection} (in chapter ${sectionChapterId}). Do not touch other sections.${usedFallback ? " The chapter has no explicitly-linked context messages, so the messages above are the full conversation — infer relevance from the section's title/purpose." : ""}`
+          : "";
+        batchActions = await callAgent(
+          LOVABLE_API_KEY,
+          promptFor("writing"),
+          `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.${sectionFocusNote}`,
+          WRITING_TOOLS,
+          "writing_actions",
+        );
+        if (focusedSection) {
+          batchActions = batchActions.filter((a: any) =>
+            ["write_section", "append_to_section", "replace_section"].includes(a.type) && a.section_id === focusedSection,
+          );
+        }
+      } else if (agent === "splitter") {
+        batchActions = await callAgent(
+          LOVABLE_API_KEY,
+          promptFor("splitter"),
+          `# Messages to evaluate\n${messagesText}\n\nFor each message that is either (a) very long (>500 chars) covering multiple distinct topics OR (b) subtitle-like / multi-speaker transcript (e.g. "Speaker A: ... Speaker B: ..." or has timestamp markers), emit a split_message action. source_message_id MUST be the exact msg id from above. Provide an array of "parts" — each with the verbatim text and an optional speaker_label when speakers can be identified. Together the parts should cover the original message faithfully. If a message does not need splitting, do NOT emit any action for it.`,
+          SPLITTER_TOOLS,
+          "splitter_actions",
+        );
+        // Validate: source_message_id must exist and parts must be non-empty
+        batchActions = batchActions.filter((a: any) => {
+          if (a.type !== "split_message") return false;
+          if (!a.source_message_id || !validMsgIds.has(a.source_message_id)) return false;
+          if (!Array.isArray(a.parts) || a.parts.length < 2) return false;
+          a.parts = a.parts.filter((p: any) => p && typeof p.text === "string" && p.text.trim());
+          return a.parts.length >= 2;
         });
       }
-    } else if (agent === "quotation") {
-      actions = await callAgent(
-        LOVABLE_API_KEY,
-        promptFor("quotation"),
-        `${bookContext}\n\n# New messages to extract quotes from\n${messagesText}\n\nFor each meaningful verbatim quote, emit a create_quote action with the EXACT verbatim text (never null/empty), a quote_ref like q1/q2, the source_message_id (must be one of the msg ids above), the speaker_id (REQUIRED — must equal the author_id of the source message — this attributes the quote to its author), and a chapter_id where the quote belongs (REQUIRED — must be one of the existing chapter ids). section_id is optional (null = quote attached at chapter level). Then emit additional assign_quote actions if the quote belongs to multiple chapters/sections. Avoid duplicating quotes already listed.`,
-        QUOTATION_TOOLS,
-        "quotation_actions",
-      );
-      // Validate: drop create_quote with empty text or invalid source_message_id
-      actions = actions.filter((a: any) => {
-        if (a.type === "create_quote") {
-          if (!a.text || typeof a.text !== "string" || !a.text.trim()) {
-            console.warn("dropping create_quote with empty text", a);
-            return false;
-          }
-          if (a.source_message_id && !validMsgIds.has(a.source_message_id)) {
-            a.source_message_id = null;
-          }
-          // Auto-fill speaker_id from source message author if missing/invalid
-          const srcMsg = a.source_message_id ? (allMsgs ?? []).find((m: any) => m.id === a.source_message_id) : null;
-          const validAuthorIds = new Set(authorIds);
-          if (!a.speaker_id || !validAuthorIds.has(a.speaker_id)) {
-            a.speaker_id = srcMsg?.author_id ?? null;
-          }
-          // Default to first chapter if model didn't pick one and only one exists
-          if (!a.chapter_id && (chapters ?? []).length === 1) {
-            a.chapter_id = (chapters as any[])[0].id;
-          }
-          if (!a.chapter_id) {
-            console.warn("dropping create_quote without chapter_id", a);
-            return false;
-          }
-        }
-        return true;
-      });
-    } else if (agent === "writing") {
-      if ((sections ?? []).length === 0) {
-        return new Response(
-          JSON.stringify({ inserted: 0, agent, message: "No sections to write into. Run Structure first." }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      const sectionFocusNote = focusedSection
-        ? `\n\nFOCUS MODE: only propose write_section / append_to_section / replace_section actions for section_id ${focusedSection} (in chapter ${sectionChapterId}). Do not touch other sections.${usedFallback ? " The chapter has no explicitly-linked context messages, so the messages above are the full conversation — infer relevance from the section's title/purpose." : ""}`
-        : "";
-      actions = await callAgent(
-        LOVABLE_API_KEY,
-        promptFor("writing"),
-        `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.${sectionFocusNote}`,
-        WRITING_TOOLS,
-        "writing_actions",
-      );
-      if (focusedSection) {
-        actions = actions.filter((a: any) =>
-          ["write_section", "append_to_section", "replace_section"].includes(a.type) && a.section_id === focusedSection,
-        );
-      }
+
+      actions = actions.concat(batchActions);
     }
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
