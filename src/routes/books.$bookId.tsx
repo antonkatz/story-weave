@@ -388,12 +388,28 @@ function DeleteBookDialog({
 
   const doDelete = async () => {
     setDeleting(true);
-    const { error } = await supabase.from("books").delete().eq("id", bookId);
-    setDeleting(false);
-    if (error) {
-      toast.error(error.message || "Could not delete book");
+    // Cascade-delete book contents (no FK cascades configured at the DB layer).
+    // Order matters: child rows first.
+    try {
+      await supabase.from("suggested_edits").delete().eq("book_id", bookId);
+      await supabase.from("message_agent_analysis").delete().eq("book_id", bookId);
+      await supabase.from("chapter_message_context").delete().eq("book_id", bookId);
+      await supabase.from("quote_placements").delete().eq("book_id", bookId);
+      await supabase.from("quotes").delete().eq("book_id", bookId);
+      await supabase.from("chapter_sections").delete().eq("book_id", bookId);
+      await supabase.from("chapters").delete().eq("book_id", bookId);
+      await supabase.from("messages").delete().eq("book_id", bookId);
+      await supabase.from("invites").delete().eq("book_id", bookId);
+      await supabase.from("book_agent_prompts").delete().eq("book_id", bookId);
+      await supabase.from("book_members").delete().eq("book_id", bookId);
+      const { error } = await supabase.from("books").delete().eq("id", bookId);
+      if (error) throw error;
+    } catch (e) {
+      setDeleting(false);
+      toast.error(e instanceof Error ? e.message : "Could not delete book");
       return;
     }
+    setDeleting(false);
     toast.success("Book deleted");
     onOpenChange(false);
     onDeleted();
