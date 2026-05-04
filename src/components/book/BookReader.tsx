@@ -11,7 +11,7 @@ export type ReaderSection = {
   content: string;
   position: number;
 };
-export type ReaderQuote = { id: string; text: string };
+export type ReaderQuote = { id: string; text: string; author_name?: string | null };
 export type ReaderPlacement = { id: string; quote_id: string; chapter_id: string; section_id: string | null };
 
 export const PRINT_CSS = `
