@@ -138,11 +138,20 @@ export function SuggestedEdits({
   const pending = edits.filter((e) => e.status === "pending");
 
   // Group pending by agent
-  const byAgent: Record<string, Edit[]> = { structure: [], quotation: [], writing: [], legacy: [] };
+  const byAgent: Record<string, Edit[]> = { structure: [], quotation: [], writing: [], splitter: [], legacy: [] };
   for (const e of pending) {
     const key = e.agent ?? "legacy";
     (byAgent[key] ??= []).push(e);
   }
+
+  // Sort: chapters first, then sections, then everything else
+  const sortActions = (list: Edit[]) =>
+    [...list].sort((a, b) => {
+      const ao = ACTION_ORDER[a.action_type ?? ""] ?? 99;
+      const bo = ACTION_ORDER[b.action_type ?? ""] ?? 99;
+      if (ao !== bo) return ao - bo;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   if (pending.length === 0) {
     return (
@@ -165,17 +174,17 @@ export function SuggestedEdits({
       </button>
       {!collapsed && (
         <div className="max-h-[40vh] space-y-3 overflow-y-auto px-3 pb-3">
-          {(["structure", "quotation", "writing", "legacy"] as const).map((agent) => {
-            const list = byAgent[agent] ?? [];
+          {(["structure", "splitter", "quotation", "writing", "legacy"] as const).map((agent) => {
+            const list = sortActions(byAgent[agent] ?? []);
             if (list.length === 0) return null;
             return (
               <div key={agent}>
                 <h5 className="mb-1 px-1 text-xs uppercase tracking-wide text-muted-foreground">
-                  {agent === "legacy" ? "General" : AGENT_LABELS[agent]} ({list.length})
+                  {agent === "legacy" ? "General" : AGENT_LABELS[agent as AgentKind]} ({list.length})
                 </h5>
                 <div className="space-y-2">
                   {list.map((e) => (
-                    <EditCard key={e.id} edit={e} onApprove={() => approve(e)} onReject={() => reject(e)} />
+                    <EditCard key={e.id} edit={e} pending={pending} onApprove={() => approve(e)} onReject={() => reject(e)} />
                   ))}
                 </div>
               </div>
