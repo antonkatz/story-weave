@@ -75,7 +75,7 @@ function JoinPage() {
 
   const join = async () => {
     if (!user) {
-      navigate({ to: "/auth", search: { redirect: `/join/${token}` } as never });
+      window.location.href = `/auth?redirect=${encodeURIComponent(`/join/${token}`)}`;
       return;
     }
     setJoining(true);
