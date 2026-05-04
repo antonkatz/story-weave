@@ -177,7 +177,7 @@ function BookPage() {
               </div>
             </div>
             <Button size="sm" variant="outline" asChild>
-              <Link to="/books/$bookId/read" params={{ bookId }}>
+              <Link to="/books/$bookId/read" params={{ bookId }} reloadDocument={false}>
                 <BookOpen className="mr-1.5 h-4 w-4" /> Read / Export
               </Link>
             </Button>
