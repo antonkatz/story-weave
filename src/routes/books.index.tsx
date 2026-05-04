@@ -69,7 +69,6 @@ function BooksPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
-      <HfxBanner />
       <main className="mx-auto max-w-6xl px-6 py-12">
         <div className="flex items-end justify-between">
           <div>
@@ -104,6 +103,7 @@ function BooksPage() {
             ))}
           </div>
         )}
+        <HfxBanner />
       </main>
     </div>
   );
