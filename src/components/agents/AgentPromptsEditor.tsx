@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-export type AgentKind = "structure" | "quotation" | "writing";
+export type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 const AGENTS: { id: AgentKind; label: string; description: string }[] = [
   { id: "structure", label: "Structure", description: "Designs chapters, synopses, themes, and sections." },
+  { id: "splitter", label: "Splitter", description: "Splits long or multi-speaker messages into smaller messages." },
   { id: "quotation", label: "Quotation", description: "Pulls verbatim quotes from messages and assigns them." },
   { id: "writing", label: "Writing", description: "Combines quotes into cohesive prose for each section." },
 ];
