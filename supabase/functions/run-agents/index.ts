@@ -141,6 +141,48 @@ const WRITING_TOOLS = [
   },
 ];
 
+const SPLITTER_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "splitter_actions",
+      description: "Detect long messages or subtitle-like transcripts that should be split into smaller messages, each representing a single utterance.",
+      parameters: {
+        type: "object",
+        properties: {
+          actions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["split_message"] },
+                source_message_id: { type: "string" },
+                summary: { type: "string" },
+                parts: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      speaker_label: { type: ["string", "null"] },
+                      text: { type: "string" },
+                    },
+                    required: ["text"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["type", "source_message_id", "parts", "summary"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["actions"],
+        additionalProperties: false,
+      },
+    },
+  },
+];
+
 async function callAgent(
   apiKey: string,
   systemPrompt: string,
