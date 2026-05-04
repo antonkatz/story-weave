@@ -14,7 +14,9 @@ const corsHeaders = {
 
 const MODEL = "google/gemini-3-flash-preview";
 
-type AgentKind = "structure" | "quotation" | "writing";
+type AgentKind = "structure" | "quotation" | "writing" | "splitter";
+
+const MAX_CHARS_PER_BATCH = 5000;
 
 const STRUCTURE_TOOLS = [
   {
@@ -35,7 +37,6 @@ const STRUCTURE_TOOLS = [
                   enum: [
                     "add_chapter",
                     "rename_chapter",
-                    "set_chapter_synopsis",
                     "set_chapter_theme",
                     "combine_chapters",
                     "add_section",
@@ -52,6 +53,9 @@ const STRUCTURE_TOOLS = [
                 theme: { type: ["string", "null"] },
                 purpose: { type: ["string", "null"] },
                 position: { type: ["number", "null"] },
+                chapter_title_hint: { type: ["string", "null"] },
+                chapter_synopsis_hint: { type: ["string", "null"] },
+                chapter_theme_hint: { type: ["string", "null"] },
                 summary: { type: "string" },
               },
               required: ["type", "summary"],
