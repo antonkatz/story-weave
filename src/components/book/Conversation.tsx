@@ -40,12 +40,8 @@ export function Conversation({
   const chunksRef = useRef<BlobPart[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [running, setRunning] = useState<AgentKind | null>(null);
-  const [analyzed, setAnalyzed] = useState<Record<AgentKind, Set<string>>>({
-    structure: new Set(),
-    quotation: new Set(),
-    writing: new Set(),
-  });
+  const [running, setRunning] = useState<string | null>(null); // `${messageId}:${agent}`
+  const [runCounts, setRunCounts] = useState<Record<string, number>>({}); // key `${messageId}:${agent}` -> count
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
