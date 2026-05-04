@@ -15,7 +15,7 @@ import { Route as BooksIndexRouteImport } from './routes/books.index'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as BooksBookIdRouteImport } from './routes/books.$bookId'
-import { Route as BooksBookIdReadRouteImport } from './routes/books.$bookId.read'
+import { Route as BooksBookIdReadRouteImport } from './routes/books.$bookId_.read'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -48,15 +48,15 @@ const BooksBookIdRoute = BooksBookIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const BooksBookIdReadRoute = BooksBookIdReadRouteImport.update({
-  id: '/read',
-  path: '/read',
-  getParentRoute: () => BooksBookIdRoute,
+  id: '/books/$bookId_/read',
+  path: '/books/$bookId/read',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/books/$bookId': typeof BooksBookIdRouteWithChildren
+  '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/books/': typeof BooksIndexRoute
@@ -65,7 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/books/$bookId': typeof BooksBookIdRouteWithChildren
+  '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/books': typeof BooksIndexRoute
@@ -75,11 +75,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/books/$bookId': typeof BooksBookIdRouteWithChildren
+  '/books/$bookId': typeof BooksBookIdRoute
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/books/': typeof BooksIndexRoute
-  '/books/$bookId/read': typeof BooksBookIdReadRoute
+  '/books/$bookId_/read': typeof BooksBookIdReadRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -108,16 +108,17 @@ export interface FileRouteTypes {
     | '/join/$token'
     | '/settings/agents'
     | '/books/'
-    | '/books/$bookId/read'
+    | '/books/$bookId_/read'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
-  BooksBookIdRoute: typeof BooksBookIdRouteWithChildren
+  BooksBookIdRoute: typeof BooksBookIdRoute
   JoinTokenRoute: typeof JoinTokenRoute
   SettingsAgentsRoute: typeof SettingsAgentsRoute
   BooksIndexRoute: typeof BooksIndexRoute
+  BooksBookIdReadRoute: typeof BooksBookIdReadRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -164,35 +165,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BooksBookIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/books/$bookId/read': {
-      id: '/books/$bookId/read'
-      path: '/read'
+    '/books/$bookId_/read': {
+      id: '/books/$bookId_/read'
+      path: '/books/$bookId/read'
       fullPath: '/books/$bookId/read'
       preLoaderRoute: typeof BooksBookIdReadRouteImport
-      parentRoute: typeof BooksBookIdRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface BooksBookIdRouteChildren {
-  BooksBookIdReadRoute: typeof BooksBookIdReadRoute
-}
-
-const BooksBookIdRouteChildren: BooksBookIdRouteChildren = {
-  BooksBookIdReadRoute: BooksBookIdReadRoute,
-}
-
-const BooksBookIdRouteWithChildren = BooksBookIdRoute._addFileChildren(
-  BooksBookIdRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
-  BooksBookIdRoute: BooksBookIdRouteWithChildren,
+  BooksBookIdRoute: BooksBookIdRoute,
   JoinTokenRoute: JoinTokenRoute,
   SettingsAgentsRoute: SettingsAgentsRoute,
   BooksIndexRoute: BooksIndexRoute,
+  BooksBookIdReadRoute: BooksBookIdReadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
