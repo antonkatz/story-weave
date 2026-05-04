@@ -55,6 +55,8 @@ export function Chapters({
   selectedSectionId?: string | null;
 }) {
   const [internalId, setInternalId] = useState<string | null>(chapters[0]?.id ?? null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const activeId = selectedChapterId ?? internalId;
   const setActiveId = (id: string | null) => {
     setInternalId(id);
@@ -98,20 +100,73 @@ export function Chapters({
     if (activeId === id) setActiveId(chapters.find((c) => c.id !== id)?.id ?? null);
   };
 
+  const reorderChapters = async (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const ordered = [...chapters].sort((a, b) => a.position - b.position);
+    const fromIdx = ordered.findIndex((c) => c.id === sourceId);
+    const toIdx = ordered.findIndex((c) => c.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = ordered.splice(fromIdx, 1);
+    ordered.splice(toIdx, 0, moved);
+    // Two-phase update to avoid colliding with any (book_id, position) unique constraint.
+    await Promise.all(
+      ordered.map((c, i) =>
+        supabase.from("chapters").update({ position: -1 - i }).eq("id", c.id),
+      ),
+    );
+    await Promise.all(
+      ordered.map((c, i) =>
+        supabase.from("chapters").update({ position: i }).eq("id", c.id),
+      ),
+    );
+    onChange();
+  };
+
   return (
     <div className="grid h-full grid-cols-[200px_1fr] divide-x divide-border">
       <div className="flex flex-col overflow-hidden">
         <div className="flex-1 space-y-1 overflow-y-auto p-2">
           {chapters.map((c) => (
-            <button
+            <div
               key={c.id}
-              onClick={() => setActiveId(c.id)}
-              className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${
-                activeId === c.id ? "bg-primary/10 font-medium text-primary" : "hover:bg-secondary"
-              }`}
+              draggable
+              onDragStart={(e) => {
+                setDraggingId(c.id);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (draggingId && draggingId !== c.id) setDropTargetId(c.id);
+              }}
+              onDragLeave={() => {
+                if (dropTargetId === c.id) setDropTargetId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const src = draggingId;
+                setDraggingId(null);
+                setDropTargetId(null);
+                if (src) reorderChapters(src, c.id);
+              }}
+              onDragEnd={() => {
+                setDraggingId(null);
+                setDropTargetId(null);
+              }}
+              className={`group relative ${
+                dropTargetId === c.id ? "before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:bg-primary" : ""
+              } ${draggingId === c.id ? "opacity-50" : ""}`}
             >
-              <span className="truncate">{c.title}</span>
-            </button>
+              <button
+                onClick={() => setActiveId(c.id)}
+                className={`flex w-full items-center gap-1 rounded-md px-2 py-2 text-left text-sm transition ${
+                  activeId === c.id ? "bg-primary/10 font-medium text-primary" : "hover:bg-secondary"
+                }`}
+              >
+                <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground opacity-0 group-hover:opacity-100" />
+                <span className="truncate">{c.title}</span>
+              </button>
+            </div>
           ))}
         </div>
         <div className="border-t border-border p-2">
