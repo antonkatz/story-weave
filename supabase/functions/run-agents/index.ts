@@ -226,7 +226,7 @@ serve(async (req) => {
       supabase.from("agent_prompts_global").select("agent,prompt"),
       supabase.from("book_agent_prompts").select("agent,prompt").eq("book_id", bookId),
       supabase.from("messages").select("id,author_id,kind,body,transcript,created_at").eq("book_id", bookId).order("created_at"),
-      supabase.from("message_agent_analysis").select("message_id").eq("book_id", bookId).eq("agent", agent),
+      supabase.from("message_agent_analysis").select("message_id,run_count").eq("book_id", bookId).eq("agent", agent),
       supabase.from("chapter_message_context").select("chapter_id,message_id").eq("book_id", bookId),
     ]);
 
