@@ -507,6 +507,24 @@ function SectionEditor({
     await supabase.from("chapter_sections").delete().eq("id", section.id);
   };
 
+  const runWriting = async () => {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("run-agents", {
+        body: { bookId, agent: "writing", sectionId: section.id },
+      });
+      if (error) throw error;
+      const inserted = (data as { inserted?: number })?.inserted ?? 0;
+      const msg = (data as { message?: string })?.message;
+      if (msg) toast.info(msg);
+      else toast.success(`Proposed ${inserted} writing edit${inserted === 1 ? "" : "s"} for this section.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not run agent");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div
       ref={wrapperRef}
@@ -519,6 +537,9 @@ function SectionEditor({
           onChange={(e) => setTitle(e.target.value)}
           className="border-none bg-transparent px-0 font-serif !text-lg font-semibold focus-visible:ring-0"
         />
+        <Button variant="ghost" size="sm" onClick={runWriting} disabled={running} title="Run Writing agent on this section">
+          <Sparkles className="mr-1 h-3.5 w-3.5" /> {running ? "Running…" : "Write"}
+        </Button>
         <Button variant="ghost" size="icon" onClick={remove} aria-label="Delete section">
           <Trash2 className="h-4 w-4 text-muted-foreground" />
         </Button>
