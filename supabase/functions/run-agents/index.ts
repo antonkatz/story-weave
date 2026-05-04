@@ -364,13 +364,21 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
+      const sectionFocusNote = focusedSection
+        ? `\n\nFOCUS MODE: only propose write_section / append_to_section / replace_section actions for section_id ${focusedSection} (in chapter ${sectionChapterId}). Do not touch other sections.${usedFallback ? " The chapter has no explicitly-linked context messages, so the messages above are the full conversation — infer relevance from the section's title/purpose." : ""}`
+        : "";
       actions = await callAgent(
         LOVABLE_API_KEY,
         promptFor("writing"),
-        `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.`,
+        `${bookContext}\n\n# New conversation context\n${messagesText}\n\nFor sections that have assigned quotes (or that the new conversation enriches), propose write_section / append_to_section / replace_section actions. section_id and chapter_id MUST be ids from the book context above. Stay close to verbatim quotes — bridge with minimal connective prose. Do NOT replicate prose that already exists in the section's "Existing prose" — only append new material or rewrite if clearly improved.${sectionFocusNote}`,
         WRITING_TOOLS,
         "writing_actions",
       );
+      if (focusedSection) {
+        actions = actions.filter((a: any) =>
+          ["write_section", "append_to_section", "replace_section"].includes(a.type) && a.section_id === focusedSection,
+        );
+      }
     }
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
