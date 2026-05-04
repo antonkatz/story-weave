@@ -290,10 +290,18 @@ serve(async (req) => {
 
     const bookContext = `# Book\nTitle: ${book?.title ?? "(untitled)"}\nDescription: ${book?.description ?? "(none)"}\n\n# Existing chapters & sections\n${chaptersText || "(none yet)"}\n\n# Existing quotes\n${quotesText || "(none)"}`;
 
+    // Load author profiles for messages so the agent can attribute quotes
+    const authorIds = Array.from(new Set((allMsgs ?? []).map((m: any) => m.author_id).filter(Boolean)));
+    const { data: authorProfiles } = authorIds.length
+      ? await supabase.from("profiles").select("id,display_name").in("id", authorIds)
+      : { data: [] as any[] };
+    const authorName = (id: string | null) =>
+      (authorProfiles ?? []).find((p: any) => p.id === id)?.display_name || "Unknown";
+
     const messagesText = newMessages
       .map((m: any) => {
         const t = m.kind === "voice" ? (m.transcript ?? "[voice — no transcript]") : m.body;
-        return `- [msg ${m.id}, author ${m.author_id}] ${t}`;
+        return `- [msg ${m.id}, author_id ${m.author_id} ("${authorName(m.author_id)}")] ${t}`;
       })
       .join("\n");
 
