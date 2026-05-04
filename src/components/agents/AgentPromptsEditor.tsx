@@ -23,9 +23,9 @@ type Prompts = Record<AgentKind, string>;
  *    and shows the inherited global prompt as fallback.
  */
 export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
-  const [globals, setGlobals] = useState<Prompts>({ structure: "", quotation: "", writing: "" });
+  const [globals, setGlobals] = useState<Prompts>({ structure: "", quotation: "", writing: "", splitter: "" });
   const [overrides, setOverrides] = useState<Partial<Prompts>>({});
-  const [drafts, setDrafts] = useState<Prompts>({ structure: "", quotation: "", writing: "" });
+  const [drafts, setDrafts] = useState<Prompts>({ structure: "", quotation: "", writing: "", splitter: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<AgentKind | null>(null);
 
@@ -39,7 +39,7 @@ export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
           : Promise.resolve({ data: [] as { agent: AgentKind; prompt: string }[] }),
       ]);
       if (!active) return;
-      const gMap: Prompts = { structure: "", quotation: "", writing: "" };
+      const gMap: Prompts = { structure: "", quotation: "", writing: "", splitter: "" };
       for (const row of g ?? []) gMap[row.agent as AgentKind] = row.prompt;
       const oMap: Partial<Prompts> = {};
       for (const row of (ovRes.data ?? []) as { agent: AgentKind; prompt: string }[]) {
