@@ -119,7 +119,12 @@ export function QuotesBrowser({
           <div key={q.id} className="rounded-lg border border-border bg-paper p-3 shadow-sm">
             <div className="flex items-start gap-2">
               <QuoteIcon className="mt-0.5 h-4 w-4 shrink-0 text-plum" />
-              <p className="flex-1 font-serif text-sm italic leading-relaxed">"{q.text}"</p>
+              <div className="flex-1">
+                <p className="font-serif text-sm italic leading-relaxed">"{q.text}"</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  — {q.speaker_id ? authors[q.speaker_id] ?? "Unknown" : "Unattributed"}
+                </p>
+              </div>
               <Button variant="ghost" size="icon" onClick={() => deleteQuote(q.id)} aria-label="Delete quote">
                 <Trash2 className="h-4 w-4 text-muted-foreground" />
               </Button>
