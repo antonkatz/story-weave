@@ -30,13 +30,13 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Quill — collaborative book writing" },
+      { title: "Weave — collaborative book writing" },
       {
         name: "description",
         content:
           "Turn the free-flowing conversations between you and your friends into a book, together.",
       },
-      { property: "og:title", content: "Quill — collaborative book writing" },
+      { property: "og:title", content: "Weave — collaborative book writing" },
       {
         property: "og:description",
         content:
@@ -44,10 +44,10 @@ export const Route = createRootRoute({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Quill — collaborative book writing" },
-      { name: "description", content: "Story Weave transforms friend conversations into collaborative books, capturing voice messages and managing chapters." },
-      { property: "og:description", content: "Story Weave transforms friend conversations into collaborative books, capturing voice messages and managing chapters." },
-      { name: "twitter:description", content: "Story Weave transforms friend conversations into collaborative books, capturing voice messages and managing chapters." },
+      { name: "twitter:title", content: "Weave — collaborative book writing" },
+      { name: "description", content: "Weave transforms friend conversations into collaborative books, capturing voice messages and managing chapters." },
+      { property: "og:description", content: "Weave transforms friend conversations into collaborative books, capturing voice messages and managing chapters." },
+      { name: "twitter:description", content: "Weave transforms friend conversations into collaborative books, capturing voice messages and managing chapters." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8101c276-cf26-4ee6-b633-fb9d0e6d72b5/id-preview-6aac4277--d3e6caea-0a39-4c53-bbba-303a2af2958b.lovable.app-1777744127220.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8101c276-cf26-4ee6-b633-fb9d0e6d72b5/id-preview-6aac4277--d3e6caea-0a39-4c53-bbba-303a2af2958b.lovable.app-1777744127220.png" },
     ],
