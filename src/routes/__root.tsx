@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { HfxBanner } from "@/components/HfxBanner";
 
 import appCss from "../styles.css?url";
 
@@ -94,5 +95,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <footer className="px-4 pb-6">
+        <HfxBanner />
+      </footer>
+    </>
+  );
 }

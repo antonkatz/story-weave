@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { AppHeader } from "@/components/AppHeader";
-import { HfxBanner } from "@/components/HfxBanner";
+
 import { RequireAuth } from "@/components/RequireAuth";
 import { useAuth } from "@/lib/auth";
 
@@ -103,7 +103,7 @@ function BooksPage() {
             ))}
           </div>
         )}
-        <HfxBanner />
+        
       </main>
     </div>
   );
