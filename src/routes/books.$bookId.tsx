@@ -11,6 +11,7 @@ import { Chapters } from "@/components/book/Chapters";
 import { QuotesBrowser } from "@/components/book/QuotesBrowser";
 import { InviteDialog } from "@/components/book/InviteDialog";
 import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
+import { ActionHistory } from "@/components/book/ActionHistory";
 
 export const Route = createFileRoute("/books/$bookId")({
   component: () => (
