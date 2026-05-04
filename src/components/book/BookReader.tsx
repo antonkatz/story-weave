@@ -62,8 +62,8 @@ export function renderBookHtml(
       .map((p) => quoteFor(p.quote_id))
       .filter(Boolean);
     for (const q of chapterQuotes) {
-      const cite = q!.author_name ? `<footer class="cite">— ${escapeHtml(q!.author_name)}</footer>` : "";
-      html += `<blockquote>${escapeHtml(q!.text)}${cite}</blockquote>`;
+      // TEMP: author hidden in export
+      html += `<blockquote>${escapeHtml(q!.text)}</blockquote>`;
     }
     const chapterSections = sections.filter((s) => s.chapter_id === c.id);
     for (const s of chapterSections) {
@@ -73,8 +73,8 @@ export function renderBookHtml(
         .map((p) => quoteFor(p.quote_id))
         .filter(Boolean);
       for (const q of sectionQuotes) {
-        const cite = q!.author_name ? `<footer class="cite">— ${escapeHtml(q!.author_name)}</footer>` : "";
-        html += `<blockquote>${escapeHtml(q!.text)}${cite}</blockquote>`;
+        // TEMP: author hidden in export
+        html += `<blockquote>${escapeHtml(q!.text)}</blockquote>`;
       }
       if (s.content) {
         html += s.content
@@ -135,9 +135,7 @@ export function BookReader({
                   className="my-4 border-l-4 border-plum/50 pl-4 font-serif italic"
                 >
                   {q.text}
-                  {q.author_name && (
-                    <footer className="mt-1 text-sm not-italic text-muted-foreground">— {q.author_name}</footer>
-                  )}
+                  {/* TEMP: author hidden in export */}
                 </blockquote>
               ))}
               {chapterSections.map((s) => {
@@ -154,9 +152,7 @@ export function BookReader({
                         className="my-3 border-l-4 border-plum/50 pl-4 font-serif italic"
                       >
                         {q.text}
-                        {q.author_name && (
-                          <footer className="mt-1 text-sm not-italic text-muted-foreground">— {q.author_name}</footer>
-                        )}
+                        {/* TEMP: author hidden in export */}
                       </blockquote>
                     ))}
                     {s.content &&
