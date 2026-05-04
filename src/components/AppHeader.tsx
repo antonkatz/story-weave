@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { BookOpen, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import weaveLogo from "@/assets/hfx-ai-guy.png";
 
 export function AppHeader() {
   const { user, signOut } = useAuth();
@@ -11,7 +12,7 @@ export function AppHeader() {
     <header className="border-b border-border bg-paper/70 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2 text-foreground">
-          <BookOpen className="h-5 w-5 text-primary" />
+          <img src={weaveLogo} alt="Weave logo" className="h-7 w-7 object-contain" />
           <span className="font-serif text-xl font-semibold tracking-tight">Weave</span>
         </Link>
         <div className="flex items-center gap-3">
