@@ -198,10 +198,12 @@ export function SuggestedEdits({
 
 function EditCard({
   edit,
+  pending,
   onApprove,
   onReject,
 }: {
   edit: Edit;
+  pending: Edit[];
   onApprove: () => void;
   onReject: () => void;
 }) {
@@ -211,12 +213,27 @@ function EditCard({
     (edit.payload && typeof edit.payload === "object"
       ? extractPreview(edit.payload as Record<string, unknown>)
       : "");
+
+  // For add_section: show which chapter it will land in (existing or pending)
+  let chapterHint: string | null = null;
+  if (edit.action_type === "add_section") {
+    const p = (edit.payload ?? {}) as Record<string, any>;
+    if (!edit.chapter_id && p.chapter_title_hint) {
+      chapterHint = `Will create chapter: "${p.chapter_title_hint}"`;
+    }
+  }
+
   return (
     <div className="rounded-lg border border-border bg-paper p-2.5 text-sm shadow-sm">
       <div className="flex items-center gap-2">
         <span className="rounded bg-plum/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-plum">
           {actionLabel}
         </span>
+        {chapterHint && (
+          <span className="rounded bg-sage/15 px-1.5 py-0.5 text-[10px] font-medium text-sage-foreground">
+            {chapterHint}
+          </span>
+        )}
       </div>
       <p className="mt-1.5 text-sm">{edit.summary}</p>
       {preview && (
