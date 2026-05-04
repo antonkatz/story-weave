@@ -283,6 +283,169 @@ function BookPage() {
           />
         </aside>
       </main>
+
+      <RenameBookDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        bookId={bookId}
+        currentTitle={book.title}
+        onRenamed={(t) => setBook((b) => (b ? { ...b, title: t } : b))}
+      />
+      <DeleteBookDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        bookId={bookId}
+        bookTitle={book.title}
+        onDeleted={() => navigate({ to: "/books" })}
+      />
     </div>
+  );
+}
+
+function RenameBookDialog({
+  open,
+  onOpenChange,
+  bookId,
+  currentTitle,
+  onRenamed,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  bookId: string;
+  currentTitle: string;
+  onRenamed: (title: string) => void;
+}) {
+  const [title, setTitle] = useState(currentTitle);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setTitle(currentTitle);
+  }, [open, currentTitle]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = title.trim();
+    if (!t) return;
+    setSaving(true);
+    const { error } = await supabase.from("books").update({ title: t }).eq("id", bookId);
+    setSaving(false);
+    if (error) {
+      toast.error("Could not rename book");
+      return;
+    }
+    toast.success("Renamed");
+    onRenamed(t);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename book</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="book-title">Title</Label>
+            <Input id="book-title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving || !title.trim()}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteBookDialog({
+  open,
+  onOpenChange,
+  bookId,
+  bookTitle,
+  onDeleted,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  bookId: string;
+  bookTitle: string;
+  onDeleted: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+      setConfirmText("");
+    }
+  }, [open]);
+
+  const doDelete = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from("books").delete().eq("id", bookId);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message || "Could not delete book");
+      return;
+    }
+    toast.success("Book deleted");
+    onOpenChange(false);
+    onDeleted();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-destructive">Delete book</DialogTitle>
+        </DialogHeader>
+        {step === 1 ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              You're about to permanently delete <strong>{bookTitle}</strong> — all chapters, sections, quotes, and
+              messages will be gone. This cannot be undone.
+            </p>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={() => setStep(2)}>
+                Continue
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <p className="text-sm">
+              Type <strong>DELETE</strong> to confirm permanent deletion of <em>{bookTitle}</em>.
+            </p>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+              autoFocus
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={confirmText.trim() !== "DELETE" || deleting}
+                onClick={doDelete}
+              >
+                {deleting ? "Deleting…" : "Delete forever"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
