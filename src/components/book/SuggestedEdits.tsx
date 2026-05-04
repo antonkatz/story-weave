@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 
-type AgentKind = "structure" | "quotation" | "writing";
+type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 type Edit = {
   id: string;
@@ -27,12 +27,12 @@ const AGENT_LABELS: Record<AgentKind, string> = {
   structure: "Structure",
   quotation: "Quotation",
   writing: "Writing",
+  splitter: "Splitter",
 };
 
 const ACTION_LABELS: Record<string, string> = {
   add_chapter: "Add chapter",
   rename_chapter: "Rename chapter",
-  set_chapter_synopsis: "Set chapter synopsis",
   set_chapter_theme: "Set chapter theme",
   combine_chapters: "Combine chapters",
   add_section: "Add section",
@@ -44,6 +44,12 @@ const ACTION_LABELS: Record<string, string> = {
   write_section: "Write section",
   append_to_section: "Append to section",
   replace_section: "Replace section",
+  split_message: "Split message",
+};
+
+const ACTION_ORDER: Record<string, number> = {
+  add_chapter: 0,
+  add_section: 1,
 };
 
 export type EditTarget = { chapterId: string; sectionId: string | null };
