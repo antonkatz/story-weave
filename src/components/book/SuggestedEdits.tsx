@@ -471,6 +471,37 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
       if (error) throw error;
       return chapterId ? { chapterId, sectionId: p.section_id } : null;
     }
+    case "split_message": {
+      const srcId = p.source_message_id;
+      const parts = Array.isArray(p.parts) ? p.parts : [];
+      if (!srcId) throw new Error("Missing source_message_id");
+      if (parts.length < 2) throw new Error("Need at least 2 parts to split");
+      const { data: srcMsg, error: srcErr } = await supabase
+        .from("messages")
+        .select("id,book_id,author_id,kind,created_at")
+        .eq("id", srcId)
+        .single();
+      if (srcErr || !srcMsg) throw new Error("Source message not found");
+      const baseTime = new Date(srcMsg.created_at).getTime();
+      const newRows = parts.map((part: any, idx: number) => {
+        const text = (part?.text ?? "").toString().trim();
+        const label = (part?.speaker_label ?? "").toString().trim();
+        const body = label ? `${label}: ${text}` : text;
+        return {
+          book_id: bookId,
+          author_id: srcMsg.author_id,
+          kind: "text" as const,
+          body,
+          created_at: new Date(baseTime + idx).toISOString(),
+        };
+      }).filter((r) => r.body);
+      if (newRows.length === 0) throw new Error("All parts were empty");
+      const { error: insErr } = await supabase.from("messages").insert(newRows);
+      if (insErr) throw insErr;
+      const { error: delErr } = await supabase.from("messages").delete().eq("id", srcId);
+      if (delErr) throw delErr;
+      return null;
+    }
     default:
       throw new Error(`Unknown action_type: ${t}`);
   }
