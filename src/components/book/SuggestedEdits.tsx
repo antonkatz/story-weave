@@ -346,34 +346,66 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
     }
     case "add_section": {
       let chapterId = edit.chapter_id ?? p.chapter_id;
+      const titleHint: string | undefined = p.chapter_title_hint;
+
+      // If we have a chapter title hint, prefer matching an existing chapter (case-insensitive)
+      // before creating a new one — prevents two suggestions from creating duplicate chapters.
+      if (!chapterId && titleHint) {
+        const { data: matchChapters } = await supabase
+          .from("chapters")
+          .select("id,title")
+          .eq("book_id", bookId);
+        const norm = (s: string) => s.trim().toLowerCase();
+        const existing = (matchChapters ?? []).find((c) => norm(c.title) === norm(titleHint));
+        if (existing) chapterId = existing.id;
+      }
+
       if (!chapterId) {
-        // Auto-create chapter from hint payload
-        const titleHint = p.chapter_title_hint;
         if (!titleHint) {
-          throw new Error(
-            "This section was proposed for a not-yet-created chapter. Re-run the structure agent so it includes a chapter_title_hint.",
-          );
+          // Fallback: create a chapter using the section title so we never block the user.
+          const fallbackTitle = (p.title as string)?.trim() || "New chapter";
+          const { data: chExisting0 } = await supabase
+            .from("chapters")
+            .select("position")
+            .eq("book_id", bookId)
+            .order("position", { ascending: false })
+            .limit(1);
+          const chPos0 = (chExisting0?.[0]?.position ?? -1) + 1;
+          const { data: newChapter0, error: chErr0 } = await supabase
+            .from("chapters")
+            .insert({
+              book_id: bookId,
+              title: fallbackTitle,
+              position: chPos0,
+              synopsis: p.purpose || "",
+              theme: "",
+            })
+            .select("id")
+            .single();
+          if (chErr0) throw chErr0;
+          chapterId = newChapter0.id;
+        } else {
+          const { data: chExisting } = await supabase
+            .from("chapters")
+            .select("position")
+            .eq("book_id", bookId)
+            .order("position", { ascending: false })
+            .limit(1);
+          const chPos = (chExisting?.[0]?.position ?? -1) + 1;
+          const { data: newChapter, error: chErr } = await supabase
+            .from("chapters")
+            .insert({
+              book_id: bookId,
+              title: titleHint,
+              position: chPos,
+              synopsis: p.chapter_synopsis_hint || "",
+              theme: p.chapter_theme_hint || "",
+            })
+            .select("id")
+            .single();
+          if (chErr) throw chErr;
+          chapterId = newChapter.id;
         }
-        const { data: chExisting } = await supabase
-          .from("chapters")
-          .select("position")
-          .eq("book_id", bookId)
-          .order("position", { ascending: false })
-          .limit(1);
-        const chPos = (chExisting?.[0]?.position ?? -1) + 1;
-        const { data: newChapter, error: chErr } = await supabase
-          .from("chapters")
-          .insert({
-            book_id: bookId,
-            title: titleHint,
-            position: chPos,
-            synopsis: p.chapter_synopsis_hint || "",
-            theme: p.chapter_theme_hint || "",
-          })
-          .select("id")
-          .single();
-        if (chErr) throw chErr;
-        chapterId = newChapter.id;
       }
       const { data: existing } = await supabase
         .from("chapter_sections")
@@ -382,13 +414,15 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
         .order("position", { ascending: false })
         .limit(1);
       const nextPos = (existing?.[0]?.position ?? -1) + 1;
+      const sectionTitle = (p.title as string)?.trim() || "Untitled section";
+      const sectionPurpose = (p.purpose as string)?.trim() || (p.synopsis as string)?.trim() || "";
       const { data: created, error } = await supabase
         .from("chapter_sections")
         .insert({
           book_id: bookId,
           chapter_id: chapterId,
-          title: p.title || "New section",
-          purpose: p.purpose || "",
+          title: sectionTitle,
+          purpose: sectionPurpose,
           position: nextPos,
         })
         .select("id")

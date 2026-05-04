@@ -1,10 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Users, Bot, BookOpen } from "lucide-react";
+import { ArrowLeft, Users, Bot, BookOpen, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { RequireAuth } from "@/components/RequireAuth";
 import { Conversation } from "@/components/book/Conversation";
 import { Chapters } from "@/components/book/Chapters";
@@ -12,6 +21,7 @@ import { QuotesBrowser } from "@/components/book/QuotesBrowser";
 import { InviteDialog } from "@/components/book/InviteDialog";
 import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
 import { ActionHistory } from "@/components/book/ActionHistory";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/books/$bookId")({
   component: () => (
@@ -45,6 +55,7 @@ type Member = {
 function BookPage() {
   const { bookId } = Route.useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [book, setBook] = useState<Book | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -53,6 +64,8 @@ function BookPage() {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("chapters");
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const handleApplied = useCallback((target: { chapterId: string; sectionId: string | null }) => {
     setActiveTab("chapters");
@@ -152,9 +165,35 @@ function BookPage() {
                 <ArrowLeft className="mr-1 h-4 w-4" /> Books
               </Link>
             </Button>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Book</p>
-              <h1 className="font-serif text-xl font-semibold leading-tight">{book.title}</h1>
+            <div className="flex items-center gap-1">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Book</p>
+                <h1 className="font-serif text-xl font-semibold leading-tight">{book.title}</h1>
+              </div>
+              {user?.id === book.owner_id && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1 h-7 w-7 text-muted-foreground"
+                    aria-label="Rename book"
+                    title="Rename book"
+                    onClick={() => setRenameOpen(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    aria-label="Delete book"
+                    title="Delete book"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -244,6 +283,185 @@ function BookPage() {
           />
         </aside>
       </main>
+
+      <RenameBookDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        bookId={bookId}
+        currentTitle={book.title}
+        onRenamed={(t) => setBook((b) => (b ? { ...b, title: t } : b))}
+      />
+      <DeleteBookDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        bookId={bookId}
+        bookTitle={book.title}
+        onDeleted={() => navigate({ to: "/books" })}
+      />
     </div>
+  );
+}
+
+function RenameBookDialog({
+  open,
+  onOpenChange,
+  bookId,
+  currentTitle,
+  onRenamed,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  bookId: string;
+  currentTitle: string;
+  onRenamed: (title: string) => void;
+}) {
+  const [title, setTitle] = useState(currentTitle);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (open) setTitle(currentTitle);
+  }, [open, currentTitle]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = title.trim();
+    if (!t) return;
+    setSaving(true);
+    const { error } = await supabase.from("books").update({ title: t }).eq("id", bookId);
+    setSaving(false);
+    if (error) {
+      toast.error("Could not rename book");
+      return;
+    }
+    toast.success("Renamed");
+    onRenamed(t);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename book</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1">
+            <Label htmlFor="book-title">Title</Label>
+            <Input id="book-title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving || !title.trim()}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteBookDialog({
+  open,
+  onOpenChange,
+  bookId,
+  bookTitle,
+  onDeleted,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  bookId: string;
+  bookTitle: string;
+  onDeleted: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setStep(1);
+      setConfirmText("");
+    }
+  }, [open]);
+
+  const doDelete = async () => {
+    setDeleting(true);
+    // Cascade-delete book contents (no FK cascades configured at the DB layer).
+    // Order matters: child rows first.
+    try {
+      await supabase.from("suggested_edits").delete().eq("book_id", bookId);
+      await supabase.from("message_agent_analysis").delete().eq("book_id", bookId);
+      await supabase.from("chapter_message_context").delete().eq("book_id", bookId);
+      await supabase.from("quote_placements").delete().eq("book_id", bookId);
+      await supabase.from("quotes").delete().eq("book_id", bookId);
+      await supabase.from("chapter_sections").delete().eq("book_id", bookId);
+      await supabase.from("chapters").delete().eq("book_id", bookId);
+      await supabase.from("messages").delete().eq("book_id", bookId);
+      await supabase.from("invites").delete().eq("book_id", bookId);
+      await supabase.from("book_agent_prompts").delete().eq("book_id", bookId);
+      await supabase.from("book_members").delete().eq("book_id", bookId);
+      const { error } = await supabase.from("books").delete().eq("id", bookId);
+      if (error) throw error;
+    } catch (e) {
+      setDeleting(false);
+      toast.error(e instanceof Error ? e.message : "Could not delete book");
+      return;
+    }
+    setDeleting(false);
+    toast.success("Book deleted");
+    onOpenChange(false);
+    onDeleted();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="text-destructive">Delete book</DialogTitle>
+        </DialogHeader>
+        {step === 1 ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              You're about to permanently delete <strong>{bookTitle}</strong> — all chapters, sections, quotes, and
+              messages will be gone. This cannot be undone.
+            </p>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={() => setStep(2)}>
+                Continue
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <p className="text-sm">
+              Type <strong>DELETE</strong> to confirm permanent deletion of <em>{bookTitle}</em>.
+            </p>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+              autoFocus
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={confirmText.trim() !== "DELETE" || deleting}
+                onClick={doDelete}
+              >
+                {deleting ? "Deleting…" : "Delete forever"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
