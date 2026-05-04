@@ -263,18 +263,21 @@ export type Database = {
           analyzed_at: string
           book_id: string
           message_id: string
+          run_count: number
         }
         Insert: {
           agent: Database["public"]["Enums"]["agent_kind"]
           analyzed_at?: string
           book_id: string
           message_id: string
+          run_count?: number
         }
         Update: {
           agent?: Database["public"]["Enums"]["agent_kind"]
           analyzed_at?: string
           book_id?: string
           message_id?: string
+          run_count?: number
         }
         Relationships: []
       }
