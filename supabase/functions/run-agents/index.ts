@@ -293,13 +293,19 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      if (runCountFor(focusedMessage) >= 3) {
+      // Catch-up: include all earlier unprocessed messages too
+      const targetIdx = (allMsgs ?? []).findIndex((m: any) => m.id === focusedMessage);
+      const earlier = (allMsgs ?? [])
+        .slice(0, targetIdx)
+        .filter((m: any) => !analyzedSet.has(m.id));
+      const includeTarget = runCountFor(focusedMessage) < 3;
+      newMessages = [...earlier, ...(includeTarget ? [target] : [])];
+      if (newMessages.length === 0) {
         return new Response(
           JSON.stringify({ inserted: 0, agent, message: `${agent} agent already ran 3 times on this message.` }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      newMessages = [target];
     } else if (effectiveFocusChapter) {
       const focusedMsgIds = new Set(
         (contextLinks ?? [])
