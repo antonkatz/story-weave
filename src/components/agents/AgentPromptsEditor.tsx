@@ -111,7 +111,7 @@ export function AgentPromptsEditor({ bookId }: { bookId?: string }) {
 
   return (
     <Tabs defaultValue="structure" className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList className="grid w-full grid-cols-4">
         {AGENTS.map((a) => (
           <TabsTrigger key={a.id} value={a.id}>
             {a.label}
