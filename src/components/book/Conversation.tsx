@@ -279,6 +279,7 @@ export function Conversation({
 
   const agentList: { id: AgentKind; label: string }[] = [
     { id: "structure", label: "Structure" },
+    { id: "splitter", label: "Splitter" },
     { id: "quotation", label: "Quotation" },
     { id: "writing", label: "Writing" },
   ];
