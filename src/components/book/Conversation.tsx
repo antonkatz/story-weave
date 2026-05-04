@@ -20,7 +20,7 @@ type Message = {
   analyzed_at: string | null;
 };
 
-type AgentKind = "structure" | "quotation" | "writing";
+type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 export function Conversation({
   bookId,
