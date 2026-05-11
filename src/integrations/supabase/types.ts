@@ -85,6 +85,42 @@ export type Database = {
           },
         ]
       }
+      book_speakers: {
+        Row: {
+          book_id: string
+          created_at: string
+          display_name: string
+          id: string
+          sample_end_sec: number | null
+          sample_message_id: string | null
+          sample_start_sec: number | null
+          speaker_key: string
+          updated_at: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          sample_end_sec?: number | null
+          sample_message_id?: string | null
+          sample_start_sec?: number | null
+          speaker_key: string
+          updated_at?: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          sample_end_sec?: number | null
+          sample_message_id?: string | null
+          sample_start_sec?: number | null
+          speaker_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       books: {
         Row: {
           created_at: string
@@ -302,35 +338,50 @@ export type Database = {
       messages: {
         Row: {
           analyzed_at: string | null
+          audio_end_sec: number | null
           audio_path: string | null
+          audio_start_sec: number | null
           author_id: string
           body: string
           book_id: string
           created_at: string
+          diarization: Json | null
           id: string
           kind: Database["public"]["Enums"]["message_kind"]
+          source_audio_message_id: string | null
+          speaker_id: string | null
           transcript: string | null
         }
         Insert: {
           analyzed_at?: string | null
+          audio_end_sec?: number | null
           audio_path?: string | null
+          audio_start_sec?: number | null
           author_id: string
           body?: string
           book_id: string
           created_at?: string
+          diarization?: Json | null
           id?: string
           kind?: Database["public"]["Enums"]["message_kind"]
+          source_audio_message_id?: string | null
+          speaker_id?: string | null
           transcript?: string | null
         }
         Update: {
           analyzed_at?: string | null
+          audio_end_sec?: number | null
           audio_path?: string | null
+          audio_start_sec?: number | null
           author_id?: string
           body?: string
           book_id?: string
           created_at?: string
+          diarization?: Json | null
           id?: string
           kind?: Database["public"]["Enums"]["message_kind"]
+          source_audio_message_id?: string | null
+          speaker_id?: string | null
           transcript?: string | null
         }
         Relationships: [
