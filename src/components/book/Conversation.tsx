@@ -412,6 +412,7 @@ function MessageBubble({
   message,
   isMine,
   authorName,
+  speakerName,
   highlighted,
   agents,
   runCounts,
@@ -421,16 +422,19 @@ function MessageBubble({
   message: Message;
   isMine: boolean;
   authorName: string;
+  speakerName?: string | null;
   highlighted?: boolean;
   agents: { id: AgentKind; label: string }[];
   runCounts: Record<string, number>;
   running: string | null;
   onRunAgent: (agent: AgentKind) => void;
 }) {
+  const isTurn = !!message.source_audio_message_id;
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (message.kind !== "voice" || !message.audio_path) return;
+    if (isTurn) return; // turn bubbles render via AudioSnippet (slice playback)
     let active = true;
     supabase.storage
       .from("voice-messages")
@@ -441,7 +445,13 @@ function MessageBubble({
     return () => {
       active = false;
     };
-  }, [message]);
+  }, [message, isTurn]);
+
+  const headerLabel = isTurn
+    ? speakerName ?? "Speaker"
+    : isMine
+    ? "You"
+    : authorName;
 
   return (
     <div id={`msg-${message.id}`} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
@@ -453,13 +463,19 @@ function MessageBubble({
         } ${highlighted ? "ring-2 ring-plum ring-offset-2 ring-offset-paper" : ""}`}
       >
         <p className={`mb-1 text-xs font-medium ${isMine ? "opacity-80" : "text-muted-foreground"}`}>
-          {isMine ? "You" : authorName}
+          {headerLabel}
         </p>
         {message.kind === "text" ? (
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body}</p>
         ) : (
           <div className="space-y-2">
-            {audioUrl ? (
+            {isTurn && message.audio_path ? (
+              <AudioSnippet
+                audioPath={message.audio_path}
+                startSec={message.audio_start_sec}
+                endSec={message.audio_end_sec}
+              />
+            ) : audioUrl ? (
               <audio controls src={audioUrl} className="w-64 max-w-full" />
             ) : (
               <p className="text-xs italic opacity-70">Loading audio…</p>
