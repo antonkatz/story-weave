@@ -41,6 +41,7 @@ export function Conversation({
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [profiles, setProfiles] = useState<ProfileMap>({});
+  const [speakers, setSpeakers] = useState<Record<string, SpeakerLite>>({});
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -57,13 +58,43 @@ export function Conversation({
     (async () => {
       const { data } = await supabase
         .from("messages")
-        .select("id,author_id,kind,body,audio_path,transcript,created_at,analyzed_at")
+        .select(
+          "id,author_id,kind,body,audio_path,transcript,created_at,analyzed_at,speaker_id,source_audio_message_id,audio_start_sec,audio_end_sec,diarization",
+        )
         .eq("book_id", bookId)
         .order("created_at", { ascending: true });
       if (active) setMessages((data ?? []) as Message[]);
     })();
     return () => {
       active = false;
+    };
+  }, [bookId]);
+
+  // Speakers (for labelling turn bubbles)
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data } = await supabase
+        .from("book_speakers")
+        .select("id,display_name")
+        .eq("book_id", bookId);
+      if (!active) return;
+      const map: Record<string, SpeakerLite> = {};
+      for (const s of (data ?? []) as SpeakerLite[]) map[s.id] = s;
+      setSpeakers(map);
+    };
+    load();
+    const ch = supabase
+      .channel(`conv-speakers:${bookId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "book_speakers", filter: `book_id=eq.${bookId}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
     };
   }, [bookId]);
 
