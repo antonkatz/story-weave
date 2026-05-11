@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { SuggestedEdits } from "@/components/book/SuggestedEdits";
+import { AudioSnippet } from "@/components/book/AudioSnippet";
 
 type ProfileMap = Record<string, { display_name: string; avatar_url: string | null }>;
 
@@ -18,7 +19,14 @@ type Message = {
   transcript: string | null;
   created_at: string;
   analyzed_at: string | null;
+  speaker_id: string | null;
+  source_audio_message_id: string | null;
+  audio_start_sec: number | null;
+  audio_end_sec: number | null;
+  diarization: unknown | null;
 };
+
+type SpeakerLite = { id: string; display_name: string };
 
 type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
@@ -34,6 +42,7 @@ export function Conversation({
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [profiles, setProfiles] = useState<ProfileMap>({});
+  const [speakers, setSpeakers] = useState<Record<string, SpeakerLite>>({});
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -50,13 +59,43 @@ export function Conversation({
     (async () => {
       const { data } = await supabase
         .from("messages")
-        .select("id,author_id,kind,body,audio_path,transcript,created_at,analyzed_at")
+        .select(
+          "id,author_id,kind,body,audio_path,transcript,created_at,analyzed_at,speaker_id,source_audio_message_id,audio_start_sec,audio_end_sec,diarization",
+        )
         .eq("book_id", bookId)
         .order("created_at", { ascending: true });
       if (active) setMessages((data ?? []) as Message[]);
     })();
     return () => {
       active = false;
+    };
+  }, [bookId]);
+
+  // Speakers (for labelling turn bubbles)
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data } = await supabase
+        .from("book_speakers")
+        .select("id,display_name")
+        .eq("book_id", bookId);
+      if (!active) return;
+      const map: Record<string, SpeakerLite> = {};
+      for (const s of (data ?? []) as SpeakerLite[]) map[s.id] = s;
+      setSpeakers(map);
+    };
+    load();
+    const ch = supabase
+      .channel(`conv-speakers:${bookId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "book_speakers", filter: `book_id=eq.${bookId}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
     };
   }, [bookId]);
 
@@ -286,20 +325,27 @@ export function Conversation({
     { id: "writing", label: "Writing" },
   ];
 
+  // Hide "container" voice messages — those are the raw uploads that have been
+  // split into per-speaker turn bubbles (which carry source_audio_message_id).
+  const visibleMessages = messages.filter(
+    (m) => !(m.kind === "voice" && m.diarization != null && m.source_audio_message_id == null),
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
-        {messages.length === 0 ? (
+        {visibleMessages.length === 0 ? (
           <p className="mt-12 text-center text-sm italic text-muted-foreground">
             No messages yet — say hello or send a voice note.
           </p>
         ) : (
-          messages.map((m) => (
+          visibleMessages.map((m) => (
             <MessageBubble
               key={m.id}
               message={m}
               isMine={m.author_id === user?.id}
               authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
+              speakerName={m.speaker_id ? speakers[m.speaker_id]?.display_name ?? null : null}
               highlighted={m.id === highlightId}
               agents={agentList}
               runCounts={runCounts}
@@ -367,6 +413,7 @@ function MessageBubble({
   message,
   isMine,
   authorName,
+  speakerName,
   highlighted,
   agents,
   runCounts,
@@ -376,16 +423,19 @@ function MessageBubble({
   message: Message;
   isMine: boolean;
   authorName: string;
+  speakerName?: string | null;
   highlighted?: boolean;
   agents: { id: AgentKind; label: string }[];
   runCounts: Record<string, number>;
   running: string | null;
   onRunAgent: (agent: AgentKind) => void;
 }) {
+  const isTurn = !!message.source_audio_message_id;
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (message.kind !== "voice" || !message.audio_path) return;
+    if (isTurn) return; // turn bubbles render via AudioSnippet (slice playback)
     let active = true;
     supabase.storage
       .from("voice-messages")
@@ -396,7 +446,13 @@ function MessageBubble({
     return () => {
       active = false;
     };
-  }, [message]);
+  }, [message, isTurn]);
+
+  const headerLabel = isTurn
+    ? speakerName ?? "Speaker"
+    : isMine
+    ? "You"
+    : authorName;
 
   return (
     <div id={`msg-${message.id}`} className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}>
@@ -408,13 +464,19 @@ function MessageBubble({
         } ${highlighted ? "ring-2 ring-plum ring-offset-2 ring-offset-paper" : ""}`}
       >
         <p className={`mb-1 text-xs font-medium ${isMine ? "opacity-80" : "text-muted-foreground"}`}>
-          {isMine ? "You" : authorName}
+          {headerLabel}
         </p>
         {message.kind === "text" ? (
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body}</p>
         ) : (
           <div className="space-y-2">
-            {audioUrl ? (
+            {isTurn && message.audio_path ? (
+              <AudioSnippet
+                audioPath={message.audio_path}
+                startSec={message.audio_start_sec}
+                endSec={message.audio_end_sec}
+              />
+            ) : audioUrl ? (
               <audio controls src={audioUrl} className="w-64 max-w-full" />
             ) : (
               <p className="text-xs italic opacity-70">Loading audio…</p>
