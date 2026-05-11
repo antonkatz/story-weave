@@ -271,17 +271,32 @@ function BookPage() {
               </TabsContent>
             </Tabs>
           </div>
-          <div className="flex min-h-[30%] flex-none flex-col" style={{ height: "32%" }}>
-            <ActionHistory bookId={bookId} />
-          </div>
         </section>
 
         <aside className="flex flex-col overflow-hidden bg-paper">
-          <Conversation
-            bookId={bookId}
-            jumpToMessageId={jumpToMessageId ? jumpToMessageId.split("#")[0] : null}
-            onApplied={handleApplied}
-          />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Conversation
+              bookId={bookId}
+              jumpToMessageId={jumpToMessageId ? jumpToMessageId.split("#")[0] : null}
+              onApplied={handleApplied}
+            />
+          </div>
+          <div className="flex min-h-[260px] flex-none flex-col border-t border-border" style={{ height: "38%" }}>
+            <Tabs defaultValue="speakers" className="flex h-full flex-col">
+              <div className="border-b border-border bg-paper/70 px-3 py-1.5">
+                <TabsList>
+                  <TabsTrigger value="speakers">Speakers</TabsTrigger>
+                  <TabsTrigger value="history">History</TabsTrigger>
+                </TabsList>
+              </div>
+              <TabsContent value="speakers" className="m-0 flex-1 overflow-hidden">
+                <Speakers bookId={bookId} />
+              </TabsContent>
+              <TabsContent value="history" className="m-0 flex-1 overflow-hidden">
+                <ActionHistory bookId={bookId} />
+              </TabsContent>
+            </Tabs>
+          </div>
         </aside>
       </main>
 
