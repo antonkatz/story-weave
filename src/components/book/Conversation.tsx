@@ -324,20 +324,27 @@ export function Conversation({
     { id: "writing", label: "Writing" },
   ];
 
+  // Hide "container" voice messages — those are the raw uploads that have been
+  // split into per-speaker turn bubbles (which carry source_audio_message_id).
+  const visibleMessages = messages.filter(
+    (m) => !(m.kind === "voice" && m.diarization != null && m.source_audio_message_id == null),
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
-        {messages.length === 0 ? (
+        {visibleMessages.length === 0 ? (
           <p className="mt-12 text-center text-sm italic text-muted-foreground">
             No messages yet — say hello or send a voice note.
           </p>
         ) : (
-          messages.map((m) => (
+          visibleMessages.map((m) => (
             <MessageBubble
               key={m.id}
               message={m}
               isMine={m.author_id === user?.id}
               authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
+              speakerName={m.speaker_id ? speakers[m.speaker_id]?.display_name ?? null : null}
               highlighted={m.id === highlightId}
               agents={agentList}
               runCounts={runCounts}
