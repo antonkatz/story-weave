@@ -202,8 +202,9 @@ export function Conversation({
       toast.error("Please select an audio file");
       return;
     }
-    if (file.size > 25 * 1024 * 1024) {
-      toast.error("Audio file must be 25MB or smaller");
+    // Files >24MB are routed to Deepgram server-side; cap at 500MB to keep upload sane.
+    if (file.size > 500 * 1024 * 1024) {
+      toast.error("Audio file must be 500MB or smaller");
       return;
     }
     const ext = file.name.split(".").pop()?.toLowerCase() || "mp3";
