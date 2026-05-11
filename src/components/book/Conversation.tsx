@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { SuggestedEdits } from "@/components/book/SuggestedEdits";
+import { AudioSnippet } from "@/components/book/AudioSnippet";
 
 type ProfileMap = Record<string, { display_name: string; avatar_url: string | null }>;
 
