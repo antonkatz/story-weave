@@ -414,7 +414,11 @@ async function applyAgentAction(edit: Edit, bookId: string): Promise<EditTarget 
         .order("position", { ascending: false })
         .limit(1);
       const nextPos = (existing?.[0]?.position ?? -1) + 1;
-      const sectionTitle = (p.title as string)?.trim() || "Untitled section";
+      const sectionTitle =
+        (p.title as string)?.trim() ||
+        (edit.summary as string)?.trim() ||
+        (p.summary as string)?.trim() ||
+        "Untitled section";
       const sectionPurpose = (p.purpose as string)?.trim() || (p.synopsis as string)?.trim() || "";
       const { data: created, error } = await supabase
         .from("chapter_sections")
