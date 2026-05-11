@@ -21,6 +21,7 @@ import { QuotesBrowser } from "@/components/book/QuotesBrowser";
 import { InviteDialog } from "@/components/book/InviteDialog";
 import { AgentSettingsDialog } from "@/components/book/AgentSettingsDialog";
 import { ActionHistory } from "@/components/book/ActionHistory";
+import { Speakers } from "@/components/book/Speakers";
 import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/books/$bookId")({
