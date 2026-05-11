@@ -18,7 +18,14 @@ type Message = {
   transcript: string | null;
   created_at: string;
   analyzed_at: string | null;
+  speaker_id: string | null;
+  source_audio_message_id: string | null;
+  audio_start_sec: number | null;
+  audio_end_sec: number | null;
+  diarization: unknown | null;
 };
+
+type SpeakerLite = { id: string; display_name: string };
 
 type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
