@@ -394,6 +394,101 @@ export type Database = {
           },
         ]
       }
+      podcast_import_episodes: {
+        Row: {
+          attempts: number
+          audio_url: string
+          created_at: string
+          duration_sec: number
+          episode_title: string
+          error: string | null
+          id: string
+          import_id: string
+          locked_at: string | null
+          position: number
+          source_message_id: string | null
+          status: Database["public"]["Enums"]["podcast_episode_status"]
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          audio_url: string
+          created_at?: string
+          duration_sec?: number
+          episode_title?: string
+          error?: string | null
+          id?: string
+          import_id: string
+          locked_at?: string | null
+          position?: number
+          source_message_id?: string | null
+          status?: Database["public"]["Enums"]["podcast_episode_status"]
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          audio_url?: string
+          created_at?: string
+          duration_sec?: number
+          episode_title?: string
+          error?: string | null
+          id?: string
+          import_id?: string
+          locked_at?: string | null
+          position?: number
+          source_message_id?: string | null
+          status?: Database["public"]["Enums"]["podcast_episode_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "podcast_import_episodes_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "podcast_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      podcast_imports: {
+        Row: {
+          agents_started_at: string | null
+          book_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          podcast_title: string
+          source_url: string
+          status: Database["public"]["Enums"]["podcast_import_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agents_started_at?: string | null
+          book_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          podcast_title?: string
+          source_url: string
+          status?: Database["public"]["Enums"]["podcast_import_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agents_started_at?: string | null
+          book_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          podcast_title?: string
+          source_url?: string
+          status?: Database["public"]["Enums"]["podcast_import_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -589,6 +684,13 @@ export type Database = {
       edit_status: "pending" | "approved" | "rejected"
       member_role: "owner" | "co_author"
       message_kind: "text" | "voice"
+      podcast_episode_status:
+        | "queued"
+        | "downloading"
+        | "transcribing"
+        | "done"
+        | "error"
+      podcast_import_status: "pending" | "running" | "done" | "error"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -721,6 +823,14 @@ export const Constants = {
       edit_status: ["pending", "approved", "rejected"],
       member_role: ["owner", "co_author"],
       message_kind: ["text", "voice"],
+      podcast_episode_status: [
+        "queued",
+        "downloading",
+        "transcribing",
+        "done",
+        "error",
+      ],
+      podcast_import_status: ["pending", "running", "done", "error"],
     },
   },
 } as const
