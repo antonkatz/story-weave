@@ -117,7 +117,7 @@ export function SuggestedEdits({
   const approve = async (edit: Edit) => {
     if (!user) return;
     try {
-      const target = await applyEdit(edit, bookId);
+      const target = await applyEditShared(supabase, edit as EditRow, bookId);
       await supabase
         .from("suggested_edits")
         .update({ status: "approved", resolved_at: new Date().toISOString(), resolved_by: user.id })
