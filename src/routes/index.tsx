@@ -1,9 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpen, MessageCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AuthProvider, useAuth } from "@/lib/auth";
+import { AuthProvider } from "@/lib/auth";
 import { AppHeader } from "@/components/AppHeader";
+import { PodcastImporter } from "@/components/landing/PodcastImporter";
 
 export const Route = createFileRoute("/")({
   component: () => (
@@ -14,14 +14,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && user) {
-      navigate({ to: "/books" });
-    }
-  }, [user, loading, navigate]);
 
   return (
     <div className="min-h-screen bg-background">
