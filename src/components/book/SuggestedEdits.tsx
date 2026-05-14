@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { applyEdit as applyEditShared, type EditRow } from "@/lib/edits";
 
 type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
