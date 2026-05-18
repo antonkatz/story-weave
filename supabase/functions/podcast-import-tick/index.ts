@@ -301,10 +301,6 @@ async function tick(): Promise<{ processed: string | null }> {
   return { processed: ep?.id ?? null };
 }
 
-Deno.cron("podcast-import-tick", "* * * * *", async () => {
-  await tick();
-});
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
   try {
