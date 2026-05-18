@@ -72,12 +72,14 @@ function BookPage() {
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("chapters");
+  const [mobileView, setMobileView] = useState<"chapters" | "quotes" | "conversation" | "people">("chapters");
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const handleApplied = useCallback((target: { chapterId: string; sectionId: string | null }) => {
     setActiveTab("chapters");
+    setMobileView("chapters");
     setSelectedChapterId(target.chapterId);
     setSelectedSectionId(target.sectionId ? `${target.sectionId}#${Date.now()}` : null);
   }, []);
