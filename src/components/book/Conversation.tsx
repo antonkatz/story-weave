@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Paperclip, Send, Square, Sparkles } from "lucide-react";
+import { Loader2, Mic, Paperclip, Send, Square, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,14 @@ type Message = {
 
 type SpeakerLite = { id: string; display_name: string };
 
+type PendingEpisode = {
+  id: string;
+  episode_title: string;
+  status: "queued" | "downloading" | "transcribing" | "error";
+  position: number;
+  import_id: string;
+};
+
 type AgentKind = "structure" | "quotation" | "writing" | "splitter";
 
 export function Conversation({
@@ -51,6 +59,7 @@ export function Conversation({
   const [uploading, setUploading] = useState(false);
   const [running, setRunning] = useState<string | null>(null); // `${messageId}:${agent}`
   const [runCounts, setRunCounts] = useState<Record<string, number>>({}); // key `${messageId}:${agent}` -> count
+  const [pendingEpisodes, setPendingEpisodes] = useState<PendingEpisode[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Initial fetch
@@ -122,6 +131,86 @@ export function Conversation({
     };
   }, [bookId]);
 
+  // Pending podcast import episodes
+  useEffect(() => {
+    let active = true;
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+
+    const loadEpisodes = async (importIds: string[]) => {
+      if (!importIds.length) {
+        if (active) setPendingEpisodes([]);
+        return;
+      }
+      const { data } = await supabase
+        .from("podcast_import_episodes")
+        .select("id, episode_title, status, position, import_id")
+        .in("import_id", importIds)
+        .neq("status", "done")
+        .order("position", { ascending: true });
+      if (active) setPendingEpisodes((data ?? []) as PendingEpisode[]);
+    };
+
+    const setup = async () => {
+      const { data: imports } = await supabase
+        .from("podcast_imports")
+        .select("id")
+        .eq("book_id", bookId)
+        .in("status", ["pending", "running"]);
+
+      const importIds = (imports ?? []).map((i: { id: string }) => i.id);
+      await loadEpisodes(importIds);
+      if (!active) return;
+
+      const importCh = supabase
+        .channel(`import-status:${bookId}`)
+        .on("postgres_changes", {
+          event: "*",
+          schema: "public",
+          table: "podcast_imports",
+          filter: `book_id=eq.${bookId}`,
+        }, async () => {
+          const { data: fresh } = await supabase
+            .from("podcast_imports")
+            .select("id")
+            .eq("book_id", bookId)
+            .in("status", ["pending", "running"]);
+          const ids = (fresh ?? []).map((i: { id: string }) => i.id);
+          await loadEpisodes(ids);
+        })
+        .subscribe();
+      channels.push(importCh);
+
+      for (const importId of importIds) {
+        const epCh = supabase
+          .channel(`import-episodes:${importId}`)
+          .on("postgres_changes", {
+            event: "UPDATE",
+            schema: "public",
+            table: "podcast_import_episodes",
+            filter: `import_id=eq.${importId}`,
+          }, (payload) => {
+            if (!active) return;
+            const ep = payload.new as PendingEpisode;
+            if (ep.status === "done") {
+              setPendingEpisodes((prev) => prev.filter((e) => e.id !== ep.id));
+            } else {
+              setPendingEpisodes((prev) =>
+                prev.map((e) => (e.id === ep.id ? { ...e, status: ep.status } : e))
+              );
+            }
+          })
+          .subscribe();
+        channels.push(epCh);
+      }
+    };
+
+    setup();
+    return () => {
+      active = false;
+      for (const ch of channels) supabase.removeChannel(ch);
+    };
+  }, [bookId]);
+
   // Load profiles for displayed authors
   useEffect(() => {
     const ids = Array.from(new Set(messages.map((m) => m.author_id))).filter(
@@ -147,7 +236,7 @@ export function Conversation({
   // Auto-scroll
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, pendingEpisodes]);
 
   // Jump-to-message: scroll specific message into view + brief highlight
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -334,25 +423,30 @@ export function Conversation({
   return (
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
-        {visibleMessages.length === 0 ? (
+        {visibleMessages.length === 0 && pendingEpisodes.length === 0 ? (
           <p className="mt-12 text-center text-sm italic text-muted-foreground">
             No messages yet — say hello or send a voice note.
           </p>
         ) : (
-          visibleMessages.map((m) => (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              isMine={m.author_id === user?.id}
-              authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
-              speakerName={m.speaker_id ? speakers[m.speaker_id]?.display_name ?? null : null}
-              highlighted={m.id === highlightId}
-              agents={agentList}
-              runCounts={runCounts}
-              running={running}
-              onRunAgent={(agent) => runAgentOnMessage(agent, m.id)}
-            />
-          ))
+          <>
+            {visibleMessages.map((m) => (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                isMine={m.author_id === user?.id}
+                authorName={profiles[m.author_id]?.display_name ?? "Co-author"}
+                speakerName={m.speaker_id ? speakers[m.speaker_id]?.display_name ?? null : null}
+                highlighted={m.id === highlightId}
+                agents={agentList}
+                runCounts={runCounts}
+                running={running}
+                onRunAgent={(agent) => runAgentOnMessage(agent, m.id)}
+              />
+            ))}
+            {pendingEpisodes.map((ep) => (
+              <PendingEpisodeBubble key={ep.id} episode={ep} />
+            ))}
+          </>
         )}
       </div>
       <div className="border-t border-border bg-paper/60 p-3">
@@ -407,6 +501,30 @@ export function Conversation({
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const EPISODE_STATUS_LABEL: Record<PendingEpisode["status"], string> = {
+  queued: "Waiting to start…",
+  downloading: "Downloading audio…",
+  transcribing: "Transcribing…",
+  error: "Import failed",
+};
+
+function PendingEpisodeBubble({ episode }: { episode: PendingEpisode }) {
+  const label = EPISODE_STATUS_LABEL[episode.status] ?? "Processing…";
+  const isError = episode.status === "error";
+  return (
+    <div className="flex flex-col items-start">
+      <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 shadow-sm ${isError ? "opacity-100" : "opacity-60"} bg-secondary text-secondary-foreground`}>
+        <p className="mb-1 text-xs font-medium text-muted-foreground">Podcast import</p>
+        <p className="text-sm">{episode.episode_title}</p>
+        <p className={`mt-1 flex items-center gap-1.5 text-xs ${isError ? "text-destructive" : "text-muted-foreground"}`}>
+          {!isError && <Loader2 className="h-3 w-3 animate-spin" />}
+          {label}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function MessageBubble({
