@@ -1,12 +1,20 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, Users, Bot, BookOpen, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, Bot, BookOpen, Pencil, Trash2, BookText, Quote, MessageCircle, UsersRound, MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
