@@ -1,20 +1,15 @@
-// Background worker for podcast imports. Scheduled via Deno.cron every minute.
+// Background worker for podcast imports. Invoked every 30s by pg_cron.
 // Picks one queued episode, downloads audio, kicks off transcription.
 // When all episodes for an import are done, runs Structure then Quote
 // agents and auto-approves every emitted suggestion.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createFileRoute } from "@tanstack/react-router";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-// deno-lint-ignore no-explicit-any
-type SbClient = any;
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-function adminClient() {
-  return createClient(SUPABASE_URL, SERVICE_KEY);
-}
+type SbClient = typeof supabaseAdmin;
 
 async function callEdgeFn(name: string, body: Record<string, unknown>) {
+  const SUPABASE_URL = process.env.SUPABASE_URL!;
+  const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   const r = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
     method: "POST",
     headers: {
@@ -68,7 +63,6 @@ type EditRow = {
 
 async function applyEdit(client: SbClient, edit: EditRow, bookId: string): Promise<void> {
   if (!edit.action_type) throw new Error("Legacy chapter-content edit — reject and re-run agents.");
-  // deno-lint-ignore no-explicit-any
   const p = (edit.payload ?? {}) as Record<string, any>;
   const t = edit.action_type;
   switch (t) {
@@ -196,7 +190,6 @@ async function applyEdit(client: SbClient, edit: EditRow, bookId: string): Promi
       const { data: srcMsg, error: srcErr } = await client.from("messages").select("id,book_id,author_id,kind,created_at").eq("id", srcId).single();
       if (srcErr || !srcMsg) throw new Error("Source message not found");
       const baseTime = new Date(srcMsg.created_at).getTime();
-      // deno-lint-ignore no-explicit-any
       const newRows = parts.map((part: any, idx: number) => {
         const text = (part?.text ?? "").toString().trim();
         const label = (part?.speaker_label ?? "").toString().trim();
@@ -216,7 +209,6 @@ async function applyEdit(client: SbClient, edit: EditRow, bookId: string): Promi
 }
 
 async function autoApprovePending(bookId: string): Promise<void> {
-  const supabaseAdmin = adminClient();
   const { data: edits } = await supabaseAdmin.from("suggested_edits").select("*").eq("book_id", bookId).eq("status", "pending").order("created_at", { ascending: true });
   for (const e of (edits ?? []) as EditRow[]) {
     try {
@@ -230,19 +222,17 @@ async function autoApprovePending(bookId: string): Promise<void> {
 }
 
 async function processEpisode(epId: string): Promise<void> {
-  const supabaseAdmin = adminClient();
   const { data: ep } = await supabaseAdmin.from("podcast_import_episodes").select("*, podcast_imports!inner(book_id, user_id)").eq("id", epId).single();
   if (!ep) return;
-  // deno-lint-ignore no-explicit-any
   const imp = (ep as any).podcast_imports as { book_id: string; user_id: string };
   const bookId = imp.book_id;
   const storagePath = `${bookId}/${epId}.mp3`;
 
-  await supabaseAdmin.from("podcast_import_episodes").update({ status: "downloading", attempts: (ep.attempts ?? 0) + 1, locked_at: new Date().toISOString() }).eq("id", epId);
+  await supabaseAdmin.from("podcast_import_episodes").update({ status: "downloading", attempts: ((ep as any).attempts ?? 0) + 1, locked_at: new Date().toISOString() }).eq("id", epId);
 
-  await streamAudioToStorage(supabaseAdmin, ep.audio_url, storagePath);
+  await streamAudioToStorage(supabaseAdmin, (ep as any).audio_url, storagePath);
 
-  const { data: msg, error: msgErr } = await supabaseAdmin.from("messages").insert({ book_id: bookId, author_id: imp.user_id, kind: "voice", body: ep.episode_title, audio_path: storagePath }).select("id").single();
+  const { data: msg, error: msgErr } = await supabaseAdmin.from("messages").insert({ book_id: bookId, author_id: imp.user_id, kind: "voice", body: (ep as any).episode_title, audio_path: storagePath }).select("id").single();
   if (msgErr || !msg) throw msgErr ?? new Error("Could not create message");
 
   await supabaseAdmin.from("podcast_import_episodes").update({ status: "transcribing", source_message_id: msg.id }).eq("id", epId);
@@ -253,7 +243,6 @@ async function processEpisode(epId: string): Promise<void> {
 }
 
 async function maybeRunAgents(importId: string): Promise<void> {
-  const supabaseAdmin = adminClient();
   const { data: imp } = await supabaseAdmin.from("podcast_imports").select("id, book_id, status, agents_started_at").eq("id", importId).single();
   if (!imp || !imp.book_id || imp.status === "done" || imp.agents_started_at) return;
 
@@ -273,8 +262,6 @@ async function maybeRunAgents(importId: string): Promise<void> {
 }
 
 async function tick(): Promise<{ processed: string | null }> {
-  const supabaseAdmin = adminClient();
-
   const { data: queued } = await supabaseAdmin.from("podcast_import_episodes").select("id, import_id").eq("status", "queued").order("created_at", { ascending: true }).limit(1);
   const ep = queued?.[0];
 
@@ -301,12 +288,25 @@ async function tick(): Promise<{ processed: string | null }> {
   return { processed: ep?.id ?? null };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } });
-  try {
-    const result = await tick();
-    return Response.json({ ok: true, ...result });
-  } catch (err) {
-    return Response.json({ ok: false, error: String(err) }, { status: 500 });
-  }
+export const Route = createFileRoute("/api/public/podcast-import-tick")({
+  server: {
+    handlers: {
+      POST: async () => {
+        try {
+          const result = await tick();
+          return Response.json({ ok: true, ...result });
+        } catch (err) {
+          return Response.json({ ok: false, error: String(err) }, { status: 500 });
+        }
+      },
+      GET: async () => {
+        try {
+          const result = await tick();
+          return Response.json({ ok: true, ...result });
+        } catch (err) {
+          return Response.json({ ok: false, error: String(err) }, { status: 500 });
+        }
+      },
+    },
+  },
 });

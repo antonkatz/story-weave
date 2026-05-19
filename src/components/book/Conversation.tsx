@@ -31,7 +31,7 @@ type SpeakerLite = { id: string; display_name: string };
 type PendingEpisode = {
   id: string;
   episode_title: string;
-  status: "queued" | "downloading" | "transcribing" | "error";
+  status: "queued" | "downloading" | "transcribing" | "done" | "error";
   position: number;
   import_id: string;
 };
@@ -507,6 +507,7 @@ const EPISODE_STATUS_LABEL: Record<PendingEpisode["status"], string> = {
   queued: "Waiting to start…",
   downloading: "Downloading audio…",
   transcribing: "Transcribing…",
+  done: "Done",
   error: "Import failed",
 };
 
