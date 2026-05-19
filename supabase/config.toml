@@ -1,4 +1,1 @@
 project_id = "jyiqaaethdxbnjzpfzdw"
-
-[functions.podcast-import-tick]
-verify_jwt = false
