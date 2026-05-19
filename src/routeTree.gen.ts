@@ -17,6 +17,7 @@ import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as BooksBookIdRouteImport } from './routes/books.$bookId'
 import { Route as ApiContactFeedbackRouteImport } from './routes/api/contact-feedback'
 import { Route as BooksBookIdReadRouteImport } from './routes/books.$bookId_.read'
+import { Route as ApiPublicPodcastImportTickRouteImport } from './routes/api/public/podcast-import-tick'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -58,6 +59,12 @@ const BooksBookIdReadRoute = BooksBookIdReadRouteImport.update({
   path: '/books/$bookId/read',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPodcastImportTickRoute =
+  ApiPublicPodcastImportTickRouteImport.update({
+    id: '/api/public/podcast-import-tick',
+    path: '/api/public/podcast-import-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/books/': typeof BooksIndexRoute
+  '/api/public/podcast-import-tick': typeof ApiPublicPodcastImportTickRoute
   '/books/$bookId/read': typeof BooksBookIdReadRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +85,7 @@ export interface FileRoutesByTo {
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/books': typeof BooksIndexRoute
+  '/api/public/podcast-import-tick': typeof ApiPublicPodcastImportTickRoute
   '/books/$bookId/read': typeof BooksBookIdReadRoute
 }
 export interface FileRoutesById {
@@ -88,6 +97,7 @@ export interface FileRoutesById {
   '/join/$token': typeof JoinTokenRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/books/': typeof BooksIndexRoute
+  '/api/public/podcast-import-tick': typeof ApiPublicPodcastImportTickRoute
   '/books/$bookId_/read': typeof BooksBookIdReadRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/join/$token'
     | '/settings/agents'
     | '/books/'
+    | '/api/public/podcast-import-tick'
     | '/books/$bookId/read'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '/join/$token'
     | '/settings/agents'
     | '/books'
+    | '/api/public/podcast-import-tick'
     | '/books/$bookId/read'
   id:
     | '__root__'
@@ -120,6 +132,7 @@ export interface FileRouteTypes {
     | '/join/$token'
     | '/settings/agents'
     | '/books/'
+    | '/api/public/podcast-import-tick'
     | '/books/$bookId_/read'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +144,7 @@ export interface RootRouteChildren {
   JoinTokenRoute: typeof JoinTokenRoute
   SettingsAgentsRoute: typeof SettingsAgentsRoute
   BooksIndexRoute: typeof BooksIndexRoute
+  ApiPublicPodcastImportTickRoute: typeof ApiPublicPodcastImportTickRoute
   BooksBookIdReadRoute: typeof BooksBookIdReadRoute
 }
 
@@ -192,6 +206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BooksBookIdReadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/podcast-import-tick': {
+      id: '/api/public/podcast-import-tick'
+      path: '/api/public/podcast-import-tick'
+      fullPath: '/api/public/podcast-import-tick'
+      preLoaderRoute: typeof ApiPublicPodcastImportTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -203,8 +224,19 @@ const rootRouteChildren: RootRouteChildren = {
   JoinTokenRoute: JoinTokenRoute,
   SettingsAgentsRoute: SettingsAgentsRoute,
   BooksIndexRoute: BooksIndexRoute,
+  ApiPublicPodcastImportTickRoute: ApiPublicPodcastImportTickRoute,
   BooksBookIdReadRoute: BooksBookIdReadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
