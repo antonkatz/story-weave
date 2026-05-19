@@ -308,7 +308,7 @@ function ChapterEditor({
     reloadQuotes();
     reloadContext();
     const ch = supabase
-      .channel(`chapter-detail:${chapter.id}`)
+      .channel(`chapter-detail:${chapter.id}:${Date.now()}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "chapter_sections", filter: `chapter_id=eq.${chapter.id}` },
