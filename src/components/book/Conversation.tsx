@@ -507,6 +507,7 @@ const EPISODE_STATUS_LABEL: Record<PendingEpisode["status"], string> = {
   queued: "Waiting to start…",
   downloading: "Downloading audio…",
   transcribing: "Transcribing…",
+  done: "Done",
   error: "Import failed",
 };
 
