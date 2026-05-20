@@ -94,8 +94,9 @@ export function Conversation({
       setSpeakers(map);
     };
     load();
+    const uid = Math.random().toString(36).slice(2);
     const ch = supabase
-      .channel(`conv-speakers:${bookId}`)
+      .channel(`conv-speakers:${bookId}:${uid}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "book_speakers", filter: `book_id=eq.${bookId}` },
