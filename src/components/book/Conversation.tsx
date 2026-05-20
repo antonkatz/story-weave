@@ -164,7 +164,7 @@ export function Conversation({
       if (!active) return;
 
       const importCh = supabase
-        .channel(`import-status:${bookId}`)
+        .channel(`import-status:${bookId}:${Math.random().toString(36).slice(2)}`)
         .on("postgres_changes", {
           event: "*",
           schema: "public",
