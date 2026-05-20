@@ -94,8 +94,9 @@ export function Conversation({
       setSpeakers(map);
     };
     load();
+    const uid = Math.random().toString(36).slice(2);
     const ch = supabase
-      .channel(`conv-speakers:${bookId}`)
+      .channel(`conv-speakers:${bookId}:${uid}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "book_speakers", filter: `book_id=eq.${bookId}` },
@@ -110,8 +111,9 @@ export function Conversation({
 
   // Realtime
   useEffect(() => {
+    const uid = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`messages:${bookId}`)
+      .channel(`messages:${bookId}:${uid}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `book_id=eq.${bookId}` },
@@ -162,7 +164,7 @@ export function Conversation({
       if (!active) return;
 
       const importCh = supabase
-        .channel(`import-status:${bookId}`)
+        .channel(`import-status:${bookId}:${Math.random().toString(36).slice(2)}`)
         .on("postgres_changes", {
           event: "*",
           schema: "public",
@@ -182,7 +184,7 @@ export function Conversation({
 
       for (const importId of importIds) {
         const epCh = supabase
-          .channel(`import-episodes:${importId}`)
+          .channel(`import-episodes:${importId}:${Math.random().toString(36).slice(2)}`)
           .on("postgres_changes", {
             event: "UPDATE",
             schema: "public",
@@ -367,8 +369,9 @@ export function Conversation({
 
   // Realtime: track analysis rows
   useEffect(() => {
+    const uid = Math.random().toString(36).slice(2);
     const ch = supabase
-      .channel(`analysis:${bookId}`)
+      .channel(`analysis:${bookId}:${uid}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
