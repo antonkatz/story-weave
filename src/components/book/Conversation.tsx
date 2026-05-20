@@ -184,7 +184,7 @@ export function Conversation({
 
       for (const importId of importIds) {
         const epCh = supabase
-          .channel(`import-episodes:${importId}`)
+          .channel(`import-episodes:${importId}:${Math.random().toString(36).slice(2)}`)
           .on("postgres_changes", {
             event: "UPDATE",
             schema: "public",
