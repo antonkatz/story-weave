@@ -369,8 +369,9 @@ export function Conversation({
 
   // Realtime: track analysis rows
   useEffect(() => {
+    const uid = Math.random().toString(36).slice(2);
     const ch = supabase
-      .channel(`analysis:${bookId}`)
+      .channel(`analysis:${bookId}:${uid}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "message_agent_analysis", filter: `book_id=eq.${bookId}` },
