@@ -111,8 +111,9 @@ export function Conversation({
 
   // Realtime
   useEffect(() => {
+    const uid = Math.random().toString(36).slice(2);
     const channel = supabase
-      .channel(`messages:${bookId}`)
+      .channel(`messages:${bookId}:${uid}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `book_id=eq.${bookId}` },
